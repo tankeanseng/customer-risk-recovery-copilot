@@ -2,11 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 
-import { caseDetails } from "../../lib/demo-data";
+import { caseDetails, casesData } from "../../lib/demo-data";
+import { CaseActions } from "./case-actions";
+
+export function generateStaticParams() {
+  return casesData.rows.map((row) => ({ caseId: row.caseId }));
+}
 
 export default async function CaseDetailPage(props: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await props.params;
-  const detail = caseDetails[caseId];
+  const detail = caseDetails[caseId] ?? buildFallbackCaseDetail(caseId);
 
   if (!detail) {
     notFound();
@@ -34,16 +39,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
             ))}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={primaryButtonStyle}>Run AI Review</button>
-          <button style={secondaryButtonStyle}>Rerun Review</button>
-          <Link href="/simulator" style={secondaryLinkStyle}>
-            Open Simulator
-          </Link>
-          <Link href="/traces" style={secondaryLinkStyle}>
-            View Full Trace
-          </Link>
-        </div>
+        <CaseActions caseId={caseId} />
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
@@ -91,13 +87,17 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
             <Link href="/traces" style={secondaryLinkStyle}>
               View Trace
             </Link>
-            <button style={secondaryButtonStyle}>View Policy Check</button>
-            <button style={secondaryButtonStyle}>View Triage Inputs</button>
+            <a href="#policy-section" style={secondaryLinkStyle}>
+              View Policy Check
+            </a>
+            <a href="#triage-section" style={secondaryLinkStyle}>
+              View Triage Inputs
+            </a>
           </div>
         </section>
 
         <section style={{ display: "grid", gap: 20 }}>
-          <section style={panelStyle}>
+          <section id="policy-section" style={panelStyle}>
             <h2 style={panelTitleStyle}>Policy</h2>
             <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-muted)" }}>
               {detail.policy.map((item: string) => (
@@ -107,11 +107,11 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
               ))}
             </ul>
           </section>
-          <section style={panelStyle}>
+          <section id="triage-section" style={panelStyle}>
             <h2 style={panelTitleStyle}>Triage Provenance</h2>
             <div style={{ color: "var(--text-muted)", fontSize: 14 }}>Flagged by portfolio triage</div>
             <div style={{ marginTop: 8, fontWeight: 700 }}>
-              Score {detail.triage.score} • {detail.triage.riskBand}
+              Score {detail.triage.score} | {detail.triage.riskBand}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
               {detail.triage.triggers.map((trigger: string) => (
@@ -125,8 +125,12 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
               Baseline review: {detail.triage.latestBaselineReviewAt}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-              <button style={secondaryButtonStyle}>View Triage Logic</button>
-              <button style={primaryButtonStyle}>Run Live AI Review</button>
+              <a href="/architecture" style={secondaryLinkStyle}>
+                View Triage Logic
+              </a>
+              <a href="/traces" style={secondaryLinkStyle}>
+                Open Latest Trace
+              </a>
             </div>
           </section>
         </section>
@@ -263,3 +267,41 @@ const miniChipStyle: CSSProperties = {
   color: "var(--text-muted)",
   fontSize: 12,
 };
+
+function buildFallbackCaseDetail(caseId: string) {
+  const row = casesData.rows.find((item) => item.caseId === caseId);
+  if (!row) return null;
+
+  return {
+    customerName: row.customerName,
+    meta: `${row.segment} | ${row.region} | Demo profile | Terms vary by account | Owner: Assigned account lead`,
+    badges: [`Priority: ${row.priority}`, `Status: ${row.status}`],
+    riskSnapshot: [
+      { label: "Status", value: row.status },
+      { label: "Priority", value: row.priority },
+      { label: "Approval", value: row.approvalStatus },
+      { label: "Run", value: row.latestRunStatus },
+      { label: "Region", value: row.region },
+      { label: "Segment", value: row.segment },
+    ],
+    recommendation: {
+      action: row.latestRecommendation,
+      why: row.triggerReason,
+      tradeoff: "This fallback detail view preserves navigation while the richer case narrative is still being expanded.",
+      nextSteps: ["Open trace if available", "Run live AI review", "Inspect triage and policy context"],
+    },
+    triage: {
+      score: 50,
+      riskBand: row.status === "Awaiting Approval" ? "Critical" : row.priority === "High" ? "High" : "Monitor",
+      source: "Generated from case queue metadata",
+      latestBaselineReviewAt: row.updatedAt,
+      triggers: [row.triggerReason],
+    },
+    riskDrivers: [row.triggerReason, row.latestRecommendation],
+    notes: [
+      "Full narrative detail for this account is still being expanded in the demo dataset.",
+      "The queue, workflow, and action handling are already active for this case.",
+    ],
+    policy: ["Fallback detail view", "Use trace, approvals, and queue state for current demo behavior"],
+  };
+}

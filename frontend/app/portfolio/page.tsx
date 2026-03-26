@@ -1,9 +1,28 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { portfolioRows } from "../lib/demo-data";
 
 export default function PortfolioPage() {
+  const [query, setQuery] = useState("");
+  const [riskFilter, setRiskFilter] = useState<string>("All");
+  const [refreshStamp, setRefreshStamp] = useState("Just now");
+
+  const filteredRows = useMemo(() => {
+    return portfolioRows.filter((row) => {
+      const matchesQuery =
+        query.trim().length === 0 ||
+        row.customerName.toLowerCase().includes(query.toLowerCase()) ||
+        row.segment.toLowerCase().includes(query.toLowerCase()) ||
+        row.region.toLowerCase().includes(query.toLowerCase());
+      const matchesRisk = riskFilter === "All" || row.riskBand === riskFilter;
+      return matchesQuery && matchesRisk;
+    });
+  }, [query, riskFilter]);
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <section style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "end" }}>
@@ -15,11 +34,14 @@ export default function PortfolioPage() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <input
-            defaultValue=""
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Search customers..."
             style={{ padding: "10px 14px", borderRadius: 12, border: "1px solid var(--border)", minWidth: 260 }}
           />
-          <button style={buttonStyle(false)}>Refresh</button>
+          <button style={buttonStyle(false)} onClick={() => setRefreshStamp(new Date().toLocaleTimeString())}>
+            Refresh
+          </button>
           <Link href="/cases/case_012" style={linkButtonStyle(true)}>
             Open Demo Case
           </Link>
@@ -28,12 +50,25 @@ export default function PortfolioPage() {
 
       <section style={panelStyle}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {["Region", "Segment", "Risk Band", "Approval", "Strategic", "Overdue Range"].map((label) => (
-            <div key={label} style={filterPillStyle}>
+          {["All", "Low", "Watchlist", "High", "Critical"].map((label) => (
+            <button
+              key={label}
+              onClick={() => setRiskFilter(label)}
+              style={label === riskFilter ? activeFilterPillStyle : filterPillStyle}
+            >
               {label}
-            </div>
+            </button>
           ))}
-          <button style={buttonStyle(false)}>Reset</button>
+          <button
+            style={buttonStyle(false)}
+            onClick={() => {
+              setQuery("");
+              setRiskFilter("All");
+            }}
+          >
+            Reset
+          </button>
+          <div style={{ color: "var(--text-muted)", alignSelf: "center" }}>Refreshed: {refreshStamp}</div>
         </div>
       </section>
 
@@ -69,7 +104,7 @@ export default function PortfolioPage() {
                 </tr>
               </thead>
               <tbody>
-                {portfolioRows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.caseId}>
                     <td style={cellStyle}>
                       <Link href={`/cases/${row.caseId}`} style={{ fontWeight: 700 }}>
@@ -151,6 +186,14 @@ const filterPillStyle: CSSProperties = {
   background: "var(--panel-muted)",
   border: "1px solid var(--border)",
   color: "var(--text-muted)",
+};
+
+const activeFilterPillStyle: CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 12,
+  background: "var(--accent-soft)",
+  border: "1px solid var(--accent)",
+  color: "var(--accent)",
 };
 
 const buttonStyle = (primary: boolean): CSSProperties => ({

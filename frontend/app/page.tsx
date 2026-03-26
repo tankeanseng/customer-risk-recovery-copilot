@@ -81,7 +81,7 @@ export default function OverviewPage() {
                   <Badge>{item.riskBand}</Badge>
                 </div>
                 <div style={{ marginTop: 8, color: "var(--text-muted)", fontSize: 14 }}>
-                  Triage {item.triageScore} • Overdue {item.overdueExposure}
+                  Triage {item.triageScore} | Overdue {item.overdueExposure}
                 </div>
                 <div style={{ marginTop: 8 }}>{item.reason}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
@@ -107,7 +107,7 @@ export default function OverviewPage() {
               <div key={run.runId} style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontWeight: 700 }}>{run.customerName}</div>
                 <div style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                  {run.status} • {run.node} • {run.elapsed}
+                  {run.status} | {run.node} | {run.elapsed}
                 </div>
                 <ActionLink href="/traces">Open Trace</ActionLink>
               </div>
@@ -120,7 +120,7 @@ export default function OverviewPage() {
                 <div key={approval.approvalId} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 12 }}>
                   <div style={{ fontWeight: 700 }}>{approval.customerName}</div>
                   <div style={{ color: "var(--text-muted)", fontSize: 14 }}>
-                    {approval.action} • {approval.priority} • waiting {approval.waiting}
+                    {approval.action} | {approval.priority} | waiting {approval.waiting}
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                     <ActionLink href="/approvals">Open Approval</ActionLink>
@@ -135,15 +135,15 @@ export default function OverviewPage() {
 
       <section style={{ display: "grid", gridTemplateColumns: "1fr 0.8fr", gap: 20 }}>
         <Panel title="Recommended Demo Walkthrough">
-          <div style={{ fontWeight: 700 }}>{overviewData.demo_walkthrough.recommended_customer_name}</div>
+          <div style={{ fontWeight: 700 }}>{overviewData.demoWalkthrough.recommendedCustomerName}</div>
           <ol style={{ marginTop: 12, color: "var(--text-muted)" }}>
-            {overviewData.demo_walkthrough.steps.map((step) => (
+            {overviewData.demoWalkthrough.steps.map((step) => (
               <li key={step} style={{ marginBottom: 6 }}>
                 {step}
               </li>
             ))}
           </ol>
-          <ActionLink href={`/cases/${overviewData.demo_walkthrough.recommended_case_id}`} primary>
+          <ActionLink href={`/cases/${overviewData.demoWalkthrough.recommendedCaseId}`} primary>
             Start Guided Demo
           </ActionLink>
         </Panel>

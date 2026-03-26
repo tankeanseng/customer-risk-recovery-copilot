@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 
+from app.data.mock_store import TRIAGE_RULES
+from app.schemas.cases import TriageRulesResponse
+
 router = APIRouter()
 
 
-@router.get("/triage/rules")
-async def get_triage_rules() -> dict[str, str]:
-    return {"message": "TODO: implement triage rules endpoint"}
-
+@router.get("/triage/rules", response_model=TriageRulesResponse)
+async def get_triage_rules() -> TriageRulesResponse:
+    return TRIAGE_RULES

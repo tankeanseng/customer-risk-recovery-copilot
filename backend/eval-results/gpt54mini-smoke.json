@@ -1,0 +1,339 @@
+{
+  "models": [
+    "openai/gpt-5.4-mini"
+  ],
+  "scenario_count": 8,
+  "results": [
+    {
+      "eval_id": "critical_hard_stop",
+      "label": "Critical hard-threshold exposure",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "Critical",
+        "risk_score": 92,
+        "customer_summary": "Facilities management customer in Singapore with a 5-year relationship, but current receivables performance is severely stressed and recovery confidence is low.",
+        "risk_summary": "The account has crossed hard policy thresholds with large overdue exposure, multiple 60+ day invoices, and no clear repayment plan, making it a top credit-control priority.",
+        "recommended_action": "Pause new credit orders pending manager approval and collections review.",
+        "why_now": "The account is beyond acceptable aging and exposure thresholds, and continued order flow would increase unsecured risk before any recovery plan is confirmed.",
+        "policy_status": "Hard stop threshold crossed; manager approval is mandatory before any restrictive action.",
+        "next_steps": [
+          "Move case to manager approval queue",
+          "Suspend new credit orders pending approval",
+          "Contact customer for immediate repayment commitment",
+          "Review exposure and aging after decision"
+        ],
+        "risk_drivers": [
+          "Large overdue exposure",
+          "Multiple 60+ day invoices",
+          "No active dispute mitigation",
+          "No firm repayment timeline",
+          "Ongoing new order requests"
+        ],
+        "policy_summary": [
+          "Hard stop threshold crossed",
+          "Manager approval mandatory before restrictive action",
+          "Standard handling no longer appropriate"
+        ]
+      }
+    },
+    {
+      "eval_id": "critical_strategic_exception",
+      "label": "Strategic account requiring exception review",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "Critical",
+        "risk_score": 84,
+        "customer_summary": "Strategic hospitality group with rising overdue exposure and active exception pressure.",
+        "risk_summary": "Commercial importance conflicts with the current risk and policy posture; overdue exposure and declining orders indicate weakening credit quality.",
+        "recommended_action": "Escalate for finance manager exception review",
+        "why_now": "The account now requires explicit exception handling instead of standard monitored recovery.",
+        "policy_status": "Approval required for any non-standard exception path.",
+        "next_steps": [
+          "Complete live policy review",
+          "Route to approval queue",
+          "Define monitored exception terms"
+        ],
+        "risk_drivers": [
+          "Strategic exception pressure",
+          "Worsening overdue trend",
+          "Declining order profile"
+        ],
+        "policy_summary": [
+          "High exposure threshold active",
+          "Strategic exception requires manager approval"
+        ]
+      }
+    },
+    {
+      "eval_id": "high_broken_promises",
+      "label": "Repeated broken promises with no dispute support",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "High",
+        "risk_score": 78,
+        "customer_summary": "Retail chain with stable order volume but deteriorating payment discipline and repeated missed commitments.",
+        "risk_summary": "This appears to be structural collections risk rather than temporary stress, driven by repeat broken promises and a 53-day overdue balance.",
+        "recommended_action": "Escalate collections, restrict incremental credit, and require manager review before any further exposure increase.",
+        "why_now": "The account is now combining 50-plus-day aging with repeated missed promise-to-pay commitments and no dispute justification.",
+        "policy_status": "Manager review recommended before further credit growth; repeat-default behavior rule is active.",
+        "next_steps": [
+          "Escalate to collections manager",
+          "Restrict incremental credit",
+          "Review after next payment event"
+        ],
+        "risk_drivers": [
+          "Repeated broken promises",
+          "53-day oldest overdue",
+          "No dispute justification"
+        ],
+        "policy_summary": [
+          "Repeat-default behavior rule active",
+          "Manager review recommended before further credit expansion"
+        ]
+      }
+    },
+    {
+      "eval_id": "watchlist_borderline",
+      "label": "Borderline watchlist account with partial payments",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "Watchlist",
+        "risk_score": 63,
+        "customer_summary": "Mid-value foodservice buyer in Malaysia with a 2-year relationship, active purchasing, and moderate overdue exposure.",
+        "risk_summary": "Risk is elevated by rising overdue days, partial payments, and a mild order decline, but the account remains engaged and recoverable.",
+        "recommended_action": "Schedule monitored recovery call",
+        "why_now": "The account is close to a policy threshold, and another missed payment could require stronger controls.",
+        "policy_status": "Currently compliant; no immediate approval required.",
+        "next_steps": [
+          "Call customer within 48 hours",
+          "Confirm repayment timeline",
+          "Rerun review if no payment by review date"
+        ],
+        "risk_drivers": [
+          "Rising overdue trend",
+          "Partial payment stress",
+          "Slight order decline",
+          "Near policy threshold"
+        ],
+        "policy_summary": [
+          "Borderline exposure review trigger active",
+          "No hard approval threshold crossed yet"
+        ]
+      }
+    },
+    {
+      "eval_id": "low_healthy_baseline",
+      "label": "Healthy low-risk baseline account",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "Low",
+        "risk_score": 14,
+        "customer_summary": "Healthy office-services customer with stable payment behavior.",
+        "risk_summary": "No meaningful deterioration signals are active; payment and order patterns remain stable.",
+        "recommended_action": "No action needed",
+        "why_now": "This case is included as a stable baseline example and does not show current risk escalation.",
+        "policy_status": "No active policy triggers.",
+        "next_steps": [
+          "Keep in baseline monitoring",
+          "Re-triage on next scheduled pass"
+        ],
+        "risk_drivers": [
+          "Healthy payment profile",
+          "No dispute activity",
+          "Stable order cadence"
+        ],
+        "policy_summary": [
+          "No active policy triggers"
+        ]
+      }
+    },
+    {
+      "eval_id": "fallback_new_high_priority",
+      "label": "Fallback detail for new high-priority case",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "High",
+        "risk_score": 50,
+        "customer_summary": "Silverline Engineering Supplies Pte Ltd is a demo-profile customer in Singapore with limited account history and no established credit limit shown.",
+        "risk_summary": "The account shows shrinking orders and worsening payment behavior, which indicates deteriorating credit quality and elevated collection risk.",
+        "recommended_action": "Escalate to account review.",
+        "why_now": "The triage already flags a High-risk condition, and the latest review reflects worsening payment behavior alongside shrinking orders.",
+        "policy_status": "Approval status: none",
+        "next_steps": [
+          "Open trace if available",
+          "Run live AI review",
+          "Inspect queue state",
+          "Escalate to account review"
+        ],
+        "risk_drivers": [
+          "Shrinking orders",
+          "Worsening payment behavior",
+          "High baseline risk",
+          "Demo profile with limited history"
+        ],
+        "policy_summary": [
+          "Fallback detail view",
+          "Use queue and approvals state for current demo behavior",
+          "No approval status recorded"
+        ]
+      }
+    },
+    {
+      "eval_id": "watchlist_case_012_worsened",
+      "label": "Watchlist account worsened with another missed payment",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "High",
+        "risk_score": 79,
+        "customer_summary": "Mid-value foodservice buyer in Malaysia with 2 years of relationship history, active purchasing, and rising overdue exposure.",
+        "risk_summary": "Risk has deteriorated due to another missed payment, a larger overdue balance, and declining order activity. Engagement from the customer is weakening, increasing the likelihood of escalation.",
+        "recommended_action": "Escalate to finance manager review and initiate immediate recovery follow-up.",
+        "why_now": "A fresh missed payment and increasing overdue balance indicate the account is moving closer to a hard policy threshold.",
+        "policy_status": "Near hard threshold; escalation likely if payment is not received promptly.",
+        "next_steps": [
+          "Call customer within 48 hours",
+          "Confirm repayment timeline",
+          "Rerun review if no payment by review date"
+        ],
+        "risk_drivers": [
+          "Missed another payment",
+          "Overdue balance increased",
+          "Order decline accelerating"
+        ],
+        "policy_summary": [
+          "High exposure review trigger is now close to activation",
+          "Manager review likely if payment does not arrive"
+        ]
+      }
+    },
+    {
+      "eval_id": "watchlist_case_012_improved",
+      "label": "Watchlist account improved after meaningful partial payment",
+      "model": "openai/gpt-5.4-mini",
+      "checks": {
+        "schema_valid": true,
+        "risk_band_ok": true,
+        "action_ok": true,
+        "policy_ok": true,
+        "next_steps_ok": true,
+        "drivers_ok": true,
+        "score_range_ok": true
+      },
+      "pass_count": 7,
+      "max_pass_count": 7,
+      "output": {
+        "risk_band": "Monitor",
+        "risk_score": 48,
+        "customer_summary": "Mid-value foodservice buyer in Malaysia with moderate overdue exposure, but still active purchasing and improved engagement.",
+        "risk_summary": "Risk has eased after a meaningful partial payment and clearer repayment commitment, though exposure is not fully resolved.",
+        "recommended_action": "Continue monitored recovery with a softer follow-up cadence and confirm the repayment timeline.",
+        "why_now": "The latest payment improved short-term confidence, but the account still carries unresolved overdue risk.",
+        "policy_status": "No approval needed; continue watchlist monitoring.",
+        "next_steps": [
+          "Call customer within 48 hours",
+          "Confirm repayment timeline",
+          "Rerun review if no payment by review date"
+        ],
+        "risk_drivers": [
+          "Partial payment improved position",
+          "Customer communication improved"
+        ],
+        "policy_summary": [
+          "Remain under monitored review",
+          "No approval threshold triggered"
+        ]
+      }
+    }
+  ],
+  "failures": [],
+  "summary": {
+    "openai/gpt-5.4-mini": {
+      "runs": 8,
+      "perfect_runs": 8,
+      "total_passed_checks": 56,
+      "total_checks": 56,
+      "risk_band_failures": 0,
+      "action_failures": 0,
+      "policy_failures": 0,
+      "pass_rate": 1.0,
+      "perfect_run_rate": 1.0
+    }
+  }
+}
