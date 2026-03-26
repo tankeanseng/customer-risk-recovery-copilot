@@ -23,3 +23,4 @@ Files:
 - `operational-strategy.md`: how the product should work in production and in the public demo, including scan strategy, heuristics, and cost control
 - `triage-and-heuristics.md`: exact portfolio triage scoring, trigger rules, AI escalation logic, and how heuristic results should appear in the UI
 - `implementation-readiness-audit.md`: end-to-end audit of pages, buttons, APIs, state transitions, and critical integration dependencies
+- `secrets-and-model-strategy.md`: environment secret plan, LangSmith decision, model evaluation strategy, and structured-output retry policy
