@@ -1,49 +1,73 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from app.schemas.data import (
+    CustomersDataResponse,
+    DataRecordDetailResponse,
+    DataSummaryResponse,
+    DisputesDataResponse,
+    InvoicesDataResponse,
+    NotesDataResponse,
+    OrdersDataResponse,
+    PaymentsDataResponse,
+    PoliciesDataResponse,
+)
+from app.services.data_explorer import (
+    get_customers,
+    get_data_summary,
+    get_disputes,
+    get_invoices,
+    get_notes,
+    get_orders,
+    get_payments,
+    get_policies,
+    get_record_detail,
+)
 
 router = APIRouter()
 
-
-@router.get("/data/summary")
-async def get_data_summary() -> dict[str, str]:
-    return {"message": "TODO: implement data summary endpoint"}
-
-
-@router.get("/data/customers")
-async def get_customers() -> dict[str, str]:
-    return {"message": "TODO: implement customers data endpoint"}
+@router.get("/data/summary", response_model=DataSummaryResponse)
+async def data_summary() -> DataSummaryResponse:
+    return get_data_summary()
 
 
-@router.get("/data/invoices")
-async def get_invoices() -> dict[str, str]:
-    return {"message": "TODO: implement invoices data endpoint"}
+@router.get("/data/customers", response_model=CustomersDataResponse)
+async def customers() -> CustomersDataResponse:
+    return get_customers()
 
 
-@router.get("/data/payments")
-async def get_payments() -> dict[str, str]:
-    return {"message": "TODO: implement payments data endpoint"}
+@router.get("/data/invoices", response_model=InvoicesDataResponse)
+async def invoices() -> InvoicesDataResponse:
+    return get_invoices()
 
 
-@router.get("/data/orders")
-async def get_orders() -> dict[str, str]:
-    return {"message": "TODO: implement orders data endpoint"}
+@router.get("/data/payments", response_model=PaymentsDataResponse)
+async def payments() -> PaymentsDataResponse:
+    return get_payments()
 
 
-@router.get("/data/notes")
-async def get_notes() -> dict[str, str]:
-    return {"message": "TODO: implement notes data endpoint"}
+@router.get("/data/orders", response_model=OrdersDataResponse)
+async def orders() -> OrdersDataResponse:
+    return get_orders()
 
 
-@router.get("/data/disputes")
-async def get_disputes() -> dict[str, str]:
-    return {"message": "TODO: implement disputes data endpoint"}
+@router.get("/data/notes", response_model=NotesDataResponse)
+async def notes() -> NotesDataResponse:
+    return get_notes()
 
 
-@router.get("/data/policies")
-async def get_policies() -> dict[str, str]:
-    return {"message": "TODO: implement policies data endpoint"}
+@router.get("/data/disputes", response_model=DisputesDataResponse)
+async def disputes() -> DisputesDataResponse:
+    return get_disputes()
 
 
-@router.get("/data/records/{record_type}/{record_id}")
-async def get_record_detail(record_type: str, record_id: str) -> dict[str, str]:
-    return {"message": f"TODO: implement record detail endpoint for {record_type}/{record_id}"}
+@router.get("/data/policies", response_model=PoliciesDataResponse)
+async def policies() -> PoliciesDataResponse:
+    return get_policies()
 
+
+@router.get("/data/records/{record_type}/{record_id}", response_model=DataRecordDetailResponse)
+async def record_detail(record_type: str, record_id: str) -> DataRecordDetailResponse:
+    try:
+        return get_record_detail(record_type, record_id)
+    except HTTPException as exc:
+        raise exc

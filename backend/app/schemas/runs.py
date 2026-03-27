@@ -10,7 +10,7 @@ class WorkflowNodeSummary(BaseModel):
     label: str
     status: RunStatus
     duration_ms: int
-    model: str
+    model: str | None = None
     summary: str
 
 
@@ -79,3 +79,18 @@ class RunCompareResponse(BaseModel):
     baseline_run_id: str
     candidate_run_id: str
     differences: list[str]
+
+
+class RunHistoryEntry(BaseModel):
+    run_id: str
+    case_id: str
+    customer_name: str
+    status: RunStatus
+    started_at: str
+    duration_ms: int
+    model_used: str | None = None
+
+
+class RunHistoryResponse(BaseModel):
+    case_id: str
+    runs: list[RunHistoryEntry]

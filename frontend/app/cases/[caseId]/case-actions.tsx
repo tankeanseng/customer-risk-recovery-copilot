@@ -9,6 +9,8 @@ import { fetchJson } from "../../lib/api";
 export function CaseActions(props: { caseId: string }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [reviewResult, setReviewResult] = useState<any | null>(null);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
+  const [traceAvailable, setTraceAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function runReview() {
@@ -17,9 +19,13 @@ export function CaseActions(props: { caseId: string }) {
       const response = await fetchJson<any>(`/cases/${props.caseId}/runs`, { method: "POST" });
       setFeedback(response.message);
       setReviewResult(response.recommendation ?? null);
+      setLastRunId(response.run_id ?? null);
+      setTraceAvailable(Boolean(response.trace_available));
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to run AI review.");
       setReviewResult(null);
+      setLastRunId(null);
+      setTraceAvailable(false);
     } finally {
       setLoading(false);
     }
@@ -50,7 +56,7 @@ export function CaseActions(props: { caseId: string }) {
         <Link href="/simulator" style={secondaryLinkStyle}>
           Open Simulator
         </Link>
-        <Link href="/traces" style={secondaryLinkStyle}>
+        <Link href={lastRunId ? `/traces?runId=${lastRunId}&caseId=${props.caseId}` : `/traces?caseId=${props.caseId}`} style={secondaryLinkStyle}>
           View Full Trace
         </Link>
         <button style={secondaryButtonStyle} onClick={() => void submitApproval()} disabled={loading}>
@@ -68,7 +74,15 @@ export function CaseActions(props: { caseId: string }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
             <span style={resultChipStyle}>{reviewResult.risk_band}</span>
             <span style={resultChipStyle}>Score {reviewResult.risk_score}</span>
+            {traceAvailable && lastRunId ? <span style={resultChipStyle}>Trace {lastRunId.slice(0, 8)}</span> : null}
           </div>
+          {traceAvailable && lastRunId ? (
+            <div style={{ marginTop: 10 }}>
+              <Link href={`/traces?runId=${lastRunId}&caseId=${props.caseId}`} style={inlineTraceLinkStyle}>
+                Open exact live trace
+              </Link>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -128,4 +142,9 @@ const resultChipStyle: CSSProperties = {
   color: "var(--accent)",
   fontWeight: 700,
   fontSize: 12,
+};
+
+const inlineTraceLinkStyle: CSSProperties = {
+  color: "var(--accent)",
+  fontWeight: 700,
 };

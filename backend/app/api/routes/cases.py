@@ -1,9 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.data.mock_store import CASE_APPROVAL_REQUEST_RESPONSES, CASE_RUN_RESPONSES, CASES_LIST
 from app.schemas.cases import CaseActionResponse, CaseDetailResponse, CaseRunResponse, CasesListResponse
 from app.services.case_payloads import build_case_detail, build_case_payload
-from app.services.case_review import LiveReviewUnavailableError, is_live_review_enabled, run_live_case_review
+from app.services.case_review import (
+    LiveReviewUnavailableError,
+    build_case_review_trace_tags,
+    is_live_review_enabled,
+)
+from app.services.run_traces import get_latest_live_run_for_case, wait_for_live_run_by_id
+from app.workflows.case_review_graph import build_graph_trace_metadata, run_case_review_graph
 
 router = APIRouter()
 
@@ -26,17 +32,27 @@ async def get_case(case_id: str) -> CaseDetailResponse:
 @router.post("/cases/{case_id}/runs", response_model=CaseRunResponse)
 async def create_case_run(case_id: str) -> CaseRunResponse:
     detail = build_case_detail(case_id)
+    case_payload = build_case_payload(detail)
 
     if is_live_review_enabled():
         try:
-            review, model_used = run_live_case_review(build_case_payload(detail))
+            review, model_used, trace_run_id = run_case_review_graph(
+                case_payload,
+                langsmith_extra={
+                    "metadata": build_graph_trace_metadata(case_payload),
+                    "tags": build_case_review_trace_tags(case_payload),
+                },
+            )
+            exact_trace = wait_for_live_run_by_id(trace_run_id) if trace_run_id is not None else None
+            latest_trace = exact_trace or get_latest_live_run_for_case(case_id)
             return CaseRunResponse(
                 case_id=case_id,
-                run_id=f"run_{case_id}_live",
+                run_id=(exact_trace.run.run_id if exact_trace is not None else (latest_trace.run.run_id if latest_trace is not None else f"run_{case_id}_live")),
                 status="completed",
                 message=f"Live AI review completed for {detail.customer_name}.",
                 review_mode="live",
                 model_used=model_used,
+                trace_available=latest_trace is not None,
                 recommendation=review,
             )
         except (LiveReviewUnavailableError, Exception) as exc:
@@ -48,6 +64,7 @@ async def create_case_run(case_id: str) -> CaseRunResponse:
                     status=run.status,
                     message=f"{run.message} Live model fallback used: {exc}",
                     review_mode="fallback",
+                    trace_available=False,
                 )
 
     run = CASE_RUN_RESPONSES.get(case_id)
@@ -63,6 +80,7 @@ async def create_case_run(case_id: str) -> CaseRunResponse:
         run_id=f"run_{case_id}_demo",
         status="running",
         message=f"Live AI review started for {matching_case.customer_name}.",
+        trace_available=False,
     )
 
 

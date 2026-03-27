@@ -25,3 +25,6 @@ Files:
 - `implementation-readiness-audit.md`: end-to-end audit of pages, buttons, APIs, state transitions, and critical integration dependencies
 - `secrets-and-model-strategy.md`: environment secret plan, LangSmith decision, model evaluation strategy, and structured-output retry policy
 - `model-evaluation.md`: first live case-review model evaluation results, repeatability findings, and recommended default model choice
+- `langsmith-integration.md`: current LangSmith tracing scope, verification status, and planned expansion path
+- `langgraph-learning.md`: beginner-friendly explanation of the first LangGraph workflow, including small code examples, state flow, and project-specific input/output examples
+- `completion-checklist.md`: code-scan-based build checklist of remaining pages, workflows, integrations, and deployment work

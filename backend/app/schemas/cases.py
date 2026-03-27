@@ -61,6 +61,7 @@ class CaseRunResponse(BaseModel):
     message: str
     review_mode: str | None = None
     model_used: str | None = None
+    trace_available: bool = False
     recommendation: LiveCaseReviewOutput | None = None
 
 

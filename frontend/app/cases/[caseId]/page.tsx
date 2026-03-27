@@ -84,7 +84,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
             </ul>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-            <Link href="/traces" style={secondaryLinkStyle}>
+            <Link href={`/traces?caseId=${caseId}`} style={secondaryLinkStyle}>
               View Trace
             </Link>
             <a href="#policy-section" style={secondaryLinkStyle}>
@@ -128,7 +128,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ caseId: 
               <a href="/architecture" style={secondaryLinkStyle}>
                 View Triage Logic
               </a>
-              <a href="/traces" style={secondaryLinkStyle}>
+              <a href={`/traces?caseId=${caseId}`} style={secondaryLinkStyle}>
                 Open Latest Trace
               </a>
             </div>
