@@ -42,8 +42,8 @@ export default function PortfolioPage() {
           <button style={buttonStyle(false)} onClick={() => setRefreshStamp(new Date().toLocaleTimeString())}>
             Refresh
           </button>
-          <Link href="/cases/case_012" style={linkButtonStyle(true)}>
-            Open Demo Case
+          <Link href="/portfolio?walkthrough=demo&step=portfolio" style={linkButtonStyle(true)}>
+            Start Guided Demo
           </Link>
         </div>
       </section>
@@ -131,10 +131,10 @@ export default function PortfolioPage() {
                     <td style={cellStyle}>{row.reviewMode}</td>
                     <td style={cellStyle}>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link href={`/cases/${row.caseId}`} style={inlineLinkStyle}>
+                        <Link href={`/cases/${row.caseId}?walkthrough=demo&step=case`} style={inlineLinkStyle}>
                           Open Case
                         </Link>
-                        <Link href={`/cases/${row.caseId}`} style={inlineLinkStyle}>
+                        <Link href={`/cases/${row.caseId}?walkthrough=demo&step=case`} style={inlineLinkStyle}>
                           Run Review
                         </Link>
                       </div>

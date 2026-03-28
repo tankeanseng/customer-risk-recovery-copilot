@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { CSSProperties } from "react";
 
 import { caseDetails, casesData } from "../../lib/demo-data";
-import { CaseActions } from "./case-actions";
+import { CaseDetailClient } from "./case-detail-client";
 
 export function generateStaticParams() {
   return casesData.rows.map((row) => ({ caseId: row.caseId }));
@@ -11,297 +9,98 @@ export function generateStaticParams() {
 
 export default async function CaseDetailPage(props: { params: Promise<{ caseId: string }> }) {
   const { caseId } = await props.params;
-  const detail = caseDetails[caseId] ?? buildFallbackCaseDetail(caseId);
+  const detail = buildInitialCaseDetail(caseId);
 
   if (!detail) {
     notFound();
   }
 
-  return (
-    <div style={{ display: "grid", gap: 20 }}>
-      <section style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 16 }}>
-        <div>
-          <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-            <Link href="/portfolio" style={secondaryLinkStyle}>
-              Back to Portfolio
-            </Link>
-            <Link href="/cases" style={secondaryLinkStyle}>
-              Open in Cases
-            </Link>
-          </div>
-          <h1 style={{ margin: 0 }}>{detail.customerName}</h1>
-          <p style={{ marginTop: 8, color: "var(--text-muted)" }}>{detail.meta}</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {detail.badges.map((badge: string) => (
-              <span key={badge} style={softChipStyle}>
-                {badge}
-              </span>
-            ))}
-          </div>
-        </div>
-        <CaseActions caseId={caseId} />
-      </section>
-
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12 }}>
-        {detail.riskSnapshot.map((item: { label: string; value: string }) => (
-          <div key={item.label} style={panelStyle}>
-            <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{item.label}</div>
-            <div style={{ marginTop: 8, fontSize: 24, fontWeight: 700 }}>{item.value}</div>
-          </div>
-        ))}
-      </section>
-
-      <section style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr", gap: 20 }}>
-        <section style={panelStyle}>
-          <h2 style={panelTitleStyle}>Financial Signals</h2>
-          <ChartPlaceholder label="Invoice aging chart" />
-          <ChartPlaceholder label="Payment timeliness chart" />
-          <ChartPlaceholder label="Order trend chart" />
-          <ChartPlaceholder label="Partial payment timeline" />
-        </section>
-
-        <section style={panelStyle}>
-          <h2 style={panelTitleStyle}>AI Recommendation</h2>
-          <div style={highlightPanelStyle}>
-            <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: "var(--text-muted)" }}>
-              Recommended Action
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, margin: "6px 0 10px" }}>{detail.recommendation.action}</div>
-            <div style={{ color: "var(--text-muted)" }}>{detail.recommendation.why}</div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Business tradeoff</div>
-            <div style={{ color: "var(--text-muted)" }}>{detail.recommendation.tradeoff}</div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Next steps</div>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-muted)" }}>
-              {detail.recommendation.nextSteps.map((step: string) => (
-                <li key={step} style={{ marginBottom: 6 }}>
-                  {step}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-            <Link href={`/traces?caseId=${caseId}`} style={secondaryLinkStyle}>
-              View Trace
-            </Link>
-            <a href="#policy-section" style={secondaryLinkStyle}>
-              View Policy Check
-            </a>
-            <a href="#triage-section" style={secondaryLinkStyle}>
-              View Triage Inputs
-            </a>
-          </div>
-        </section>
-
-        <section style={{ display: "grid", gap: 20 }}>
-          <section id="policy-section" style={panelStyle}>
-            <h2 style={panelTitleStyle}>Policy</h2>
-            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-muted)" }}>
-              {detail.policy.map((item: string) => (
-                <li key={item} style={{ marginBottom: 6 }}>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section id="triage-section" style={panelStyle}>
-            <h2 style={panelTitleStyle}>Triage Provenance</h2>
-            <div style={{ color: "var(--text-muted)", fontSize: 14 }}>Flagged by portfolio triage</div>
-            <div style={{ marginTop: 8, fontWeight: 700 }}>
-              Score {detail.triage.score} | {detail.triage.riskBand}
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              {detail.triage.triggers.map((trigger: string) => (
-                <span key={trigger} style={miniChipStyle}>
-                  {trigger}
-                </span>
-              ))}
-            </div>
-            <div style={{ marginTop: 10, color: "var(--text-muted)" }}>{detail.triage.source}</div>
-            <div style={{ marginTop: 6, color: "var(--text-muted)" }}>
-              Baseline review: {detail.triage.latestBaselineReviewAt}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-              <a href="/architecture" style={secondaryLinkStyle}>
-                View Triage Logic
-              </a>
-              <a href={`/traces?caseId=${caseId}`} style={secondaryLinkStyle}>
-                Open Latest Trace
-              </a>
-            </div>
-          </section>
-        </section>
-      </section>
-
-      <section style={panelStyle}>
-        <h2 style={panelTitleStyle}>Risk Drivers</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {detail.riskDrivers.map((driver: string) => (
-            <span key={driver} style={softChipStyle}>
-              {driver}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section style={panelStyle}>
-        <h2 style={panelTitleStyle}>Notes Timeline</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {["All", "Finance", "AM", "Promise to Pay", "Dispute"].map((filter) => (
-            <span key={filter} style={miniChipStyle}>
-              {filter}
-            </span>
-          ))}
-        </div>
-        <div style={{ display: "grid", gap: 12 }}>
-          {detail.notes.map((note: string) => (
-            <div key={note} style={{ border: "1px solid var(--border)", borderRadius: 14, padding: 14, background: "var(--panel-muted)" }}>
-              {note}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={panelStyle}>
-        <h2 style={panelTitleStyle}>Evidence Panel</h2>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-          {["Invoices", "Payments", "Orders", "Notes", "Policy"].map((tab) => (
-            <span key={tab} style={miniChipStyle}>
-              {tab}
-            </span>
-          ))}
-        </div>
-        <div style={{ color: "var(--text-muted)" }}>
-          Selected driver highlights and linked records will appear here once the interactive evidence layer is implemented.
-        </div>
-      </section>
-
-      <section style={panelStyle}>
-        <h2 style={panelTitleStyle}>Disputes Panel</h2>
-        <div style={{ color: "var(--text-muted)" }}>No material open disputes for this case.</div>
-      </section>
-    </div>
-  );
+  return <CaseDetailClient caseId={caseId} initialDetail={detail} />;
 }
 
-function ChartPlaceholder(props: { label: string }) {
-  return (
-    <div
-      style={{
-        border: "1px dashed var(--border)",
-        borderRadius: 16,
-        padding: 18,
-        marginBottom: 12,
-        color: "var(--text-muted)",
-        background: "var(--panel-muted)",
-      }}
-    >
-      {props.label}
-    </div>
-  );
-}
-
-const panelStyle: CSSProperties = {
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 20,
-  padding: 20,
-};
-
-const highlightPanelStyle: CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 18,
-  padding: 18,
-  background: "var(--accent-soft)",
-};
-
-const panelTitleStyle: CSSProperties = { marginTop: 0, marginBottom: 14, fontSize: 20 };
-
-const primaryButtonStyle: CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid var(--accent)",
-  background: "var(--accent)",
-  color: "white",
-  fontWeight: 600,
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid var(--border)",
-  background: "var(--panel)",
-  color: "var(--text)",
-  fontWeight: 600,
-};
-
-const secondaryLinkStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid var(--border)",
-  background: "var(--panel)",
-  color: "var(--text)",
-  fontWeight: 600,
-};
-
-const softChipStyle: CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 999,
-  background: "var(--accent-soft)",
-  color: "var(--accent)",
-  fontWeight: 600,
-  fontSize: 12,
-};
-
-const miniChipStyle: CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 999,
-  background: "var(--panel-muted)",
-  border: "1px solid var(--border)",
-  color: "var(--text-muted)",
-  fontSize: 12,
-};
-
-function buildFallbackCaseDetail(caseId: string) {
+function buildInitialCaseDetail(caseId: string) {
+  const rich = caseDetails[caseId];
   const row = casesData.rows.find((item) => item.caseId === caseId);
   if (!row) return null;
 
+  if (rich) {
+    return {
+      case_id: caseId,
+      customer_name: rich.customerName,
+      segment: row.segment,
+      region: row.region,
+      case_status: row.status.toLowerCase().replaceAll(" ", "_"),
+      approval_status: row.approvalStatus.toLowerCase().replaceAll(" ", "_"),
+      latest_run_id: null,
+      latest_run_status: row.latestRunStatus.toLowerCase().replaceAll(" ", "_"),
+      latest_approval_id: null,
+      relationship_duration: rich.meta.split("|")[2]?.trim() ?? "Demo profile",
+      payment_terms: rich.meta.split("|")[3]?.trim() ?? "Terms vary by account",
+      credit_limit: Number((rich.meta.match(/Credit Limit ([0-9,]+)/)?.[1] ?? "0").replaceAll(",", "")),
+      account_owner: rich.meta.split("|")[5]?.replace("Owner:", "").trim() ?? "Assigned account lead",
+      strategic: rich.badges[0]?.replace("Strategic: ", "") ?? "Unknown",
+      tier: rich.badges[1]?.replace("Tier: ", "") ?? "Demo",
+      risk_band: rich.riskSnapshot[0]?.value ?? "Monitor",
+      risk_score: Number(rich.riskSnapshot[1]?.value ?? "50"),
+      triage: {
+        triage_score: rich.triage.score,
+        risk_band: rich.triage.riskBand,
+        trigger_reasons: rich.triage.triggers.map((label: string) => ({ label })),
+        latest_baseline_review_at: rich.triage.latestBaselineReviewAt,
+        case_source: rich.triage.source,
+      },
+      case_brief: {
+        customer_summary: rich.customerName,
+        risk_summary: rich.recommendation.why,
+        recommended_action: rich.recommendation.action,
+        why_now: rich.recommendation.tradeoff,
+        policy_status: rich.policy.join(" | "),
+        next_steps: rich.recommendation.nextSteps,
+      },
+      risk_drivers: rich.riskDrivers,
+      notes: rich.notes,
+      policy_summary: rich.policy,
+    };
+  }
+
   return {
-    customerName: row.customerName,
-    meta: `${row.segment} | ${row.region} | Demo profile | Terms vary by account | Owner: Assigned account lead`,
-    badges: [`Priority: ${row.priority}`, `Status: ${row.status}`],
-    riskSnapshot: [
-      { label: "Status", value: row.status },
-      { label: "Priority", value: row.priority },
-      { label: "Approval", value: row.approvalStatus },
-      { label: "Run", value: row.latestRunStatus },
-      { label: "Region", value: row.region },
-      { label: "Segment", value: row.segment },
-    ],
-    recommendation: {
-      action: row.latestRecommendation,
-      why: row.triggerReason,
-      tradeoff: "This fallback detail view preserves navigation while the richer case narrative is still being expanded.",
-      nextSteps: ["Open trace if available", "Run live AI review", "Inspect triage and policy context"],
-    },
+    case_id: caseId,
+    customer_name: row.customerName,
+    segment: row.segment,
+    region: row.region,
+    case_status: row.status.toLowerCase().replaceAll(" ", "_"),
+    approval_status: row.approvalStatus.toLowerCase().replaceAll(" ", "_"),
+    latest_run_id: null,
+    latest_run_status: row.latestRunStatus.toLowerCase().replaceAll(" ", "_"),
+    latest_approval_id: null,
+    relationship_duration: "Demo profile",
+    payment_terms: "Terms vary by account",
+    credit_limit: 0,
+    account_owner: "Assigned account lead",
+    strategic: "Unknown",
+    tier: "Demo",
+    risk_band: row.status === "Awaiting Approval" ? "Critical" : row.priority === "High" ? "High" : "Monitor",
+    risk_score: 50,
     triage: {
-      score: 50,
-      riskBand: row.status === "Awaiting Approval" ? "Critical" : row.priority === "High" ? "High" : "Monitor",
-      source: "Generated from case queue metadata",
-      latestBaselineReviewAt: row.updatedAt,
-      triggers: [row.triggerReason],
+      triage_score: 50,
+      risk_band: row.status === "Awaiting Approval" ? "Critical" : row.priority === "High" ? "High" : "Monitor",
+      trigger_reasons: [{ label: row.triggerReason }],
+      latest_baseline_review_at: row.updatedAt,
+      case_source: "Generated from case queue metadata",
     },
-    riskDrivers: [row.triggerReason, row.latestRecommendation],
+    case_brief: {
+      customer_summary: `${row.customerName} loaded from queue metadata.`,
+      risk_summary: row.triggerReason,
+      recommended_action: row.latestRecommendation,
+      why_now: "Fallback detail is being used while richer account detail is expanded.",
+      policy_status: `Approval status: ${row.approvalStatus}`,
+      next_steps: ["Open trace if available", "Run live AI review", "Inspect queue state"],
+    },
+    risk_drivers: [row.triggerReason, row.latestRecommendation],
     notes: [
       "Full narrative detail for this account is still being expanded in the demo dataset.",
-      "The queue, workflow, and action handling are already active for this case.",
+      "Queue, workflow, and action handling remain available.",
     ],
-    policy: ["Fallback detail view", "Use trace, approvals, and queue state for current demo behavior"],
+    policy_summary: ["Fallback detail view", "Use trace, approvals, and queue state for current demo behavior"],
   };
 }

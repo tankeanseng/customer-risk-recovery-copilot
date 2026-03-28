@@ -5,13 +5,19 @@ from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 
 from app.schemas.cases import LiveCaseReviewOutput
-from app.services.case_review import build_case_review_trace_metadata, execute_live_case_review_logic
+from app.services.case_review import (
+    build_case_review_trace_metadata,
+    execute_live_case_review_logic,
+    policy_status_requires_approval,
+)
+from app.services.mcp_client import gather_case_mcp_context
 
 
 class CaseReviewGraphState(TypedDict, total=False):
     case_payload: dict[str, Any]
     model_override: str | None
     intake_summary: dict[str, Any]
+    mcp_context: dict[str, Any]
     review_output: dict[str, Any]
     provider_model: str
     policy_gate: dict[str, Any]
@@ -22,6 +28,7 @@ def _run_intake_step(case_payload: dict[str, Any]) -> dict[str, Any]:
     triage = case_payload.get("triage", {})
     trigger_reasons = triage.get("trigger_reasons", [])
     reason_labels = [entry.get("label", "Unknown trigger") for entry in trigger_reasons if isinstance(entry, dict)]
+    mcp_context = gather_case_mcp_context(case_payload)
 
     return {
         "triage_score": triage.get("triage_score"),
@@ -29,9 +36,10 @@ def _run_intake_step(case_payload: dict[str, Any]) -> dict[str, Any]:
         "hard_trigger_hit": triage.get("hard_trigger_hit", False),
         "trigger_reason_count": len(reason_labels),
         "trigger_reason_labels": reason_labels[:3],
+        "mcp_context": mcp_context,
         "summary": (
             f"Prepared case {case_payload.get('case_id')} for live review "
-            f"with triage band {triage.get('risk_band', 'Unknown')}."
+            f"with triage band {triage.get('risk_band', 'Unknown')} and {len(mcp_context['tool_summaries'])} MCP lookups."
         ),
     }
 
@@ -56,7 +64,7 @@ def _run_policy_step(case_payload: dict[str, Any], review_output: dict[str, Any]
         risk_band == "Critical"
         or risk_score >= 85
         or bool(triage.get("hard_trigger_hit"))
-        or "approval" in policy_status.lower()
+        or policy_status_requires_approval(policy_status)
     )
 
     return {
@@ -76,7 +84,15 @@ def _run_policy_step(case_payload: dict[str, Any], review_output: dict[str, Any]
 
 
 def _intake_node(state: CaseReviewGraphState) -> CaseReviewGraphState:
-    return {"intake_summary": _run_intake_step(state["case_payload"])}
+    result = _run_intake_step(state["case_payload"])
+    return {
+        "intake_summary": {
+            key: value
+            for key, value in result.items()
+            if key != "mcp_context"
+        },
+        "mcp_context": result["mcp_context"],
+    }
 
 
 def _review_node(state: CaseReviewGraphState) -> CaseReviewGraphState:

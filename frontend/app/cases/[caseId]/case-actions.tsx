@@ -6,11 +6,12 @@ import type { CSSProperties } from "react";
 
 import { fetchJson } from "../../lib/api";
 
-export function CaseActions(props: { caseId: string }) {
+export function CaseActions(props: { caseId: string; onChanged?: () => void }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [reviewResult, setReviewResult] = useState<any | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [traceAvailable, setTraceAvailable] = useState(false);
+  const [approvalId, setApprovalId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function runReview() {
@@ -21,13 +22,16 @@ export function CaseActions(props: { caseId: string }) {
       setReviewResult(response.recommendation ?? null);
       setLastRunId(response.run_id ?? null);
       setTraceAvailable(Boolean(response.trace_available));
+      setApprovalId(null);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to run AI review.");
       setReviewResult(null);
       setLastRunId(null);
       setTraceAvailable(false);
+      setApprovalId(null);
     } finally {
       setLoading(false);
+      props.onChanged?.();
     }
   }
 
@@ -36,11 +40,16 @@ export function CaseActions(props: { caseId: string }) {
     try {
       const response = await fetchJson<any>(`/cases/${props.caseId}/approval-requests`, { method: "POST" });
       setFeedback(response.message);
-      setReviewResult(null);
+      setApprovalId(response.approval_id ?? null);
+      if (response.trace_run_id) {
+        setLastRunId(response.trace_run_id);
+        setTraceAvailable(Boolean(response.trace_available));
+      }
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to submit for approval.");
     } finally {
       setLoading(false);
+      props.onChanged?.();
     }
   }
 
@@ -64,6 +73,22 @@ export function CaseActions(props: { caseId: string }) {
         </button>
       </div>
       {feedback ? <div style={feedbackStyle}>{feedback}</div> : null}
+      {approvalId ? (
+        <div style={resultCardStyle}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: "var(--text-muted)" }}>
+            Approval Request Created
+          </div>
+          <div style={{ marginTop: 8, fontWeight: 700 }}>{approvalId}</div>
+          <div style={{ marginTop: 6, color: "var(--text-muted)" }}>
+            The case is now in the manager approval queue. Open the exact approval item to continue the workflow.
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <Link href={`/approvals?approvalId=${approvalId}`} style={inlineTraceLinkStyle}>
+              Open approval detail
+            </Link>
+          </div>
+        </div>
+      ) : null}
       {reviewResult ? (
         <div style={resultCardStyle}>
           <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: "var(--text-muted)" }}>

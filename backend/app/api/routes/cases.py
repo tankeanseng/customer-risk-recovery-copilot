@@ -1,14 +1,17 @@
 from fastapi import APIRouter, HTTPException
 
-from app.data.mock_store import CASE_APPROVAL_REQUEST_RESPONSES, CASE_RUN_RESPONSES, CASES_LIST
+from app.data.mock_store import CASE_RUN_RESPONSES
 from app.schemas.cases import CaseActionResponse, CaseDetailResponse, CaseRunResponse, CasesListResponse
+from app.services.approval_workflow import create_case_approval_request
 from app.services.case_payloads import build_case_detail, build_case_payload
 from app.services.case_review import (
     LiveReviewUnavailableError,
     build_case_review_trace_tags,
     is_live_review_enabled,
+    policy_status_requires_approval,
 )
 from app.services.run_traces import get_latest_live_run_for_case, wait_for_live_run_by_id
+from app.services.runtime_state import load_runtime_state, save_runtime_state
 from app.workflows.case_review_graph import build_graph_trace_metadata, run_case_review_graph
 
 router = APIRouter()
@@ -16,7 +19,7 @@ router = APIRouter()
 
 @router.get("/cases", response_model=CasesListResponse)
 async def list_cases() -> CasesListResponse:
-    return CASES_LIST
+    return load_runtime_state().cases_list
 
 
 @router.post("/cases")
@@ -30,9 +33,10 @@ async def get_case(case_id: str) -> CaseDetailResponse:
 
 
 @router.post("/cases/{case_id}/runs", response_model=CaseRunResponse)
-async def create_case_run(case_id: str) -> CaseRunResponse:
+def create_case_run(case_id: str) -> CaseRunResponse:
     detail = build_case_detail(case_id)
     case_payload = build_case_payload(detail)
+    state = load_runtime_state()
 
     if is_live_review_enabled():
         try:
@@ -45,6 +49,19 @@ async def create_case_run(case_id: str) -> CaseRunResponse:
             )
             exact_trace = wait_for_live_run_by_id(trace_run_id) if trace_run_id is not None else None
             latest_trace = exact_trace or get_latest_live_run_for_case(case_id)
+            matching_case = next((row for row in state.cases_list.rows if row.case_id == case_id), None)
+            if matching_case is not None:
+                matching_case.latest_run_id = (
+                    exact_trace.run.run_id
+                    if exact_trace is not None
+                    else (latest_trace.run.run_id if latest_trace is not None else matching_case.latest_run_id)
+                )
+                matching_case.latest_run_status = "completed"
+                approval_needed = policy_status_requires_approval(review.policy_status)
+                matching_case.status = "awaiting_approval" if approval_needed else "in_review"
+                matching_case.approval_status = "pending" if approval_needed else "none"
+                matching_case.latest_recommendation = review.recommended_action
+                save_runtime_state(state)
             return CaseRunResponse(
                 case_id=case_id,
                 run_id=(exact_trace.run.run_id if exact_trace is not None else (latest_trace.run.run_id if latest_trace is not None else f"run_{case_id}_live")),
@@ -71,7 +88,7 @@ async def create_case_run(case_id: str) -> CaseRunResponse:
     if run is not None:
         return run
 
-    matching_case = next((row for row in CASES_LIST.rows if row.case_id == case_id), None)
+    matching_case = next((row for row in state.cases_list.rows if row.case_id == case_id), None)
     if matching_case is None:
         raise HTTPException(status_code=404, detail=f"Case run template for {case_id} not found")
 
@@ -86,10 +103,7 @@ async def create_case_run(case_id: str) -> CaseRunResponse:
 
 @router.post("/cases/{case_id}/approval-requests", response_model=CaseActionResponse)
 async def create_approval_request(case_id: str) -> CaseActionResponse:
-    action = CASE_APPROVAL_REQUEST_RESPONSES.get(case_id)
-    if action is None:
-        raise HTTPException(status_code=404, detail=f"Approval request template for {case_id} not found")
-    return action
+    return create_case_approval_request(case_id)
 
 
 @router.get("/cases/{case_id}/brief/export")

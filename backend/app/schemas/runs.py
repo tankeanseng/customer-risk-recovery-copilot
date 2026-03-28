@@ -52,6 +52,9 @@ class RunSummary(BaseModel):
     customer_id: str
     customer_name: str
     status: RunStatus
+    workflow_name: str | None = None
+    source_surface: str | None = None
+    approval_id: str | None = None
     started_at: str
     ended_at: str
     duration_ms: int

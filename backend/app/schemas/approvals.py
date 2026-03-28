@@ -54,11 +54,15 @@ class ApprovalDetail(BaseModel):
     case_id: str
     customer_name: str
     requested_action: str
+    approval_status: ApprovalStatus = "pending"
+    case_status: str = "awaiting_approval"
     risk_summary: str
     policy_reason: str
     evidence_snapshot: EvidenceSnapshot
     latest_recommendation: RecommendationSnapshot
     audit_history: list[AuditEvent]
+    latest_run_id: str | None = None
+    latest_trace_available: bool = False
 
 
 class ApprovalQueueResponse(BaseModel):
@@ -76,4 +80,7 @@ class ApprovalDecisionResponse(BaseModel):
     approval_id: str
     status: ApprovalStatus
     resumed_run_id: str | None = None
+    trace_run_id: str | None = None
+    trace_available: bool = False
     case_status: str
+    message: str

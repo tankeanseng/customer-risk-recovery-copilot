@@ -38,6 +38,71 @@ type SavedScenario = {
   approval: string;
 };
 
+type ScenarioSnapshot = {
+  simulationId: string;
+  name: string;
+  inputs: ScenarioInputs;
+  result: SimulationResult;
+  deltas: string[];
+  policyImpact: string[];
+  traceReference: TraceReference;
+  modelUsed: string | null;
+};
+
+type TraceReference = {
+  simulationRunId: string;
+  traceAvailable: boolean;
+};
+
+type ApiSimulationResponse = {
+  simulation: {
+    simulation_id: string;
+    scenario_name: string;
+    model_used: string | null;
+  };
+  inputs: {
+    days_overdue_delta: number;
+    outstanding_balance_delta: number;
+    partial_payment_amount: number;
+    broken_promises_count_delta: number;
+    order_trend_state: OrderTrendState;
+    dispute_status: DisputeStatus;
+    strategic_flag: boolean;
+    credit_limit: number;
+    payment_terms_days: number;
+    account_manager_confidence: number;
+  };
+  scenario_result: {
+    risk_level: string;
+    risk_score: number;
+    recommended_action: string;
+    approval_required: boolean;
+    top_drivers: string[];
+  };
+  delta_report: {
+    top_changed_drivers: string[];
+    policy_impact: {
+      newly_triggered_rules: string[];
+    };
+  };
+  explanation: {
+    summary: string;
+  };
+  trace_reference: {
+    simulation_run_id: string;
+    trace_available: boolean;
+  };
+};
+
+type ApiSimulationListResponse = {
+  saved_scenarios: Array<{
+    simulation_id: string;
+    scenario_name: string;
+    risk_level_after: string;
+    approval_required: boolean;
+  }>;
+};
+
 const INITIAL_INPUTS: ScenarioInputs = {
   daysOverdueDelta: 14,
   outstandingBalanceDelta: 8500,
@@ -80,29 +145,89 @@ const PRESETS: Record<string, ScenarioInputs> = {
   },
 };
 
+function toApiInputs(inputs: ScenarioInputs) {
+  return {
+    days_overdue_delta: inputs.daysOverdueDelta,
+    outstanding_balance_delta: inputs.outstandingBalanceDelta,
+    partial_payment_amount: inputs.partialPaymentAmount,
+    broken_promises_count_delta: inputs.brokenPromisesCountDelta,
+    order_trend_state: inputs.orderTrendState,
+    dispute_status: inputs.disputeStatus,
+    strategic_flag: inputs.strategicFlag,
+    credit_limit: inputs.creditLimit,
+    payment_terms_days: inputs.paymentTermsDays,
+    account_manager_confidence: inputs.accountManagerConfidence,
+  };
+}
+
+function fromApiInputs(inputs: ApiSimulationResponse["inputs"]): ScenarioInputs {
+  return {
+    daysOverdueDelta: inputs.days_overdue_delta,
+    outstandingBalanceDelta: inputs.outstanding_balance_delta,
+    partialPaymentAmount: inputs.partial_payment_amount,
+    brokenPromisesCountDelta: inputs.broken_promises_count_delta,
+    orderTrendState: inputs.order_trend_state,
+    disputeStatus: inputs.dispute_status,
+    strategicFlag: inputs.strategic_flag,
+    creditLimit: inputs.credit_limit,
+    paymentTermsDays: inputs.payment_terms_days,
+    accountManagerConfidence: inputs.account_manager_confidence,
+  };
+}
+
+function mapSimulationResponse(response: ApiSimulationResponse): ScenarioSnapshot {
+  return {
+    simulationId: response.simulation.simulation_id,
+    name: response.simulation.scenario_name,
+    inputs: fromApiInputs(response.inputs),
+    result: {
+      riskLevel: response.scenario_result.risk_level,
+      riskScore: response.scenario_result.risk_score,
+      action: response.scenario_result.recommended_action,
+      approvalRequired: response.scenario_result.approval_required ? "Yes" : "No",
+      topDrivers: response.scenario_result.top_drivers,
+    },
+    deltas: response.delta_report.top_changed_drivers,
+    policyImpact: response.delta_report.policy_impact.newly_triggered_rules,
+    traceReference: {
+      simulationRunId: response.trace_reference.simulation_run_id,
+      traceAvailable: response.trace_reference.trace_available,
+    },
+    modelUsed: response.simulation.model_used,
+  };
+}
+
+function mapSavedScenario(item: ApiSimulationListResponse["saved_scenarios"][number]): SavedScenario {
+  return {
+    simulationId: item.simulation_id,
+    name: item.scenario_name,
+    risk: item.risk_level_after,
+    approval: item.approval_required ? "Approval required" : "No approval",
+  };
+}
+
 export default function SimulatorPage() {
   const [inputs, setInputs] = useState<ScenarioInputs>(INITIAL_INPUTS);
+  const [scenarioName, setScenarioName] = useState("Miss Another Payment");
   const [result, setResult] = useState<SimulationResult>(simulationData.scenarioResult);
   const [deltas, setDeltas] = useState(simulationData.deltas);
   const [policyImpact, setPolicyImpact] = useState(simulationData.policyImpact);
+  const [activeSimulationId, setActiveSimulationId] = useState("sim_301");
+  const [traceReference, setTraceReference] = useState<TraceReference>({ simulationRunId: "run_sim_301", traceAvailable: true });
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([
     { simulationId: "sim_301", name: "Miss Another Payment", risk: "High", approval: "Approval required" },
-    { simulationId: "sim_302", name: "Receive Partial Payment", risk: "Monitor", approval: "No approval" },
+      { simulationId: "sim_302", name: "Receive Partial Payment", risk: "Monitor", approval: "No approval" },
   ]);
+  const [comparisonScenario, setComparisonScenario] = useState<ScenarioSnapshot | null>(null);
+  const [snapshotCache, setSnapshotCache] = useState<Record<string, ScenarioSnapshot>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchJson<any>(`/cases/${simulationData.caseId}/simulations`)
+    fetchJson<ApiSimulationListResponse>(`/cases/${simulationData.caseId}/simulations`)
       .then((data) => {
-        setSavedScenarios(
-          data.saved_scenarios.map((item: any) => ({
-            simulationId: item.simulation_id,
-            name: item.scenario_name,
-            risk: item.risk_level_after,
-            approval: item.approval_required ? "Approval required" : "No approval",
-          })),
-        );
+        setSavedScenarios(data.saved_scenarios.map(mapSavedScenario));
       })
       .catch(() => undefined);
   }, []);
@@ -118,32 +243,23 @@ export default function SimulatorPage() {
     setLoading(true);
     setFeedback(null);
     try {
-      const response = await fetchJson<any>(`/cases/${simulationData.caseId}/simulate`, {
+      const response = await fetchJson<ApiSimulationResponse>(`/cases/${simulationData.caseId}/simulate`, {
         method: "POST",
         body: JSON.stringify({
-          days_overdue_delta: inputs.daysOverdueDelta,
-          outstanding_balance_delta: inputs.outstandingBalanceDelta,
-          partial_payment_amount: inputs.partialPaymentAmount,
-          broken_promises_count_delta: inputs.brokenPromisesCountDelta,
-          order_trend_state: inputs.orderTrendState,
-          dispute_status: inputs.disputeStatus,
-          strategic_flag: inputs.strategicFlag,
-          credit_limit: inputs.creditLimit,
-          payment_terms_days: inputs.paymentTermsDays,
-          account_manager_confidence: inputs.accountManagerConfidence,
+          scenario_name: scenarioName,
+          inputs: toApiInputs(inputs),
         }),
       });
-
-      setResult({
-        riskLevel: response.scenario_result.risk_level,
-        riskScore: response.scenario_result.risk_score,
-        action: response.scenario_result.recommended_action,
-        approvalRequired: response.scenario_result.approval_required ? "Yes" : "No",
-        topDrivers: response.scenario_result.top_drivers,
-      });
-      setDeltas(response.delta_report.top_changed_drivers);
-      setPolicyImpact(response.delta_report.policy_impact.newly_triggered_rules);
+      const snapshot = mapSimulationResponse(response);
+      setResult(snapshot.result);
+      setDeltas(snapshot.deltas);
+      setPolicyImpact(snapshot.policyImpact);
       setFeedback(response.explanation.summary);
+      setActiveSimulationId(snapshot.simulationId);
+      setTraceReference(snapshot.traceReference);
+      setModelUsed(snapshot.modelUsed);
+      setScenarioName(snapshot.name);
+      setSnapshotCache((current) => ({ ...current, [snapshot.simulationId]: snapshot }));
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to run simulation.");
     } finally {
@@ -154,19 +270,71 @@ export default function SimulatorPage() {
   async function saveScenario() {
     setLoading(true);
     try {
-      const response = await fetchJson<any>("/simulations/sim_301/save", { method: "POST" });
+      const response = await fetchJson<any>(`/simulations/${activeSimulationId}/save`, { method: "POST" });
       setFeedback(response.message);
+      setSnapshotCache((current) => ({
+        ...current,
+        [activeSimulationId]: {
+          simulationId: activeSimulationId,
+          name: scenarioName,
+          inputs,
+          result,
+          deltas,
+          policyImpact,
+          traceReference,
+          modelUsed,
+        },
+      }));
       setSavedScenarios((current) => {
         const next: SavedScenario = {
-          simulationId: `local-${Date.now()}`,
-          name: "Live Scenario",
+          simulationId: activeSimulationId.startsWith("sim_") ? activeSimulationId : `local-${Date.now()}`,
+          name: scenarioName,
           risk: result.riskLevel,
           approval: result.approvalRequired === "Yes" ? "Approval required" : "No approval",
         };
-        return [next, ...current];
+        return [next, ...current.filter((item) => item.simulationId !== next.simulationId)];
       });
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to save scenario.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadScenario(simulationId: string) {
+    setLoading(true);
+    try {
+      const response = await fetchJson<ApiSimulationResponse>(`/simulations/${simulationId}`);
+      const snapshot = mapSimulationResponse(response);
+      setActiveSimulationId(snapshot.simulationId);
+      setScenarioName(snapshot.name);
+      setInputs(snapshot.inputs);
+      setResult(snapshot.result);
+      setDeltas(snapshot.deltas);
+      setPolicyImpact(snapshot.policyImpact);
+      setTraceReference(snapshot.traceReference);
+      setModelUsed(snapshot.modelUsed);
+      setSnapshotCache((current) => ({ ...current, [snapshot.simulationId]: snapshot }));
+      setFeedback(`Loaded saved scenario into the working form: ${snapshot.name}`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Unable to load saved scenario.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function compareScenario(simulationId: string) {
+    setLoading(true);
+    try {
+      const cached = snapshotCache[simulationId];
+      const snapshot = cached ?? mapSimulationResponse(await fetchJson<ApiSimulationResponse>(`/simulations/${simulationId}`));
+      if (!cached) {
+        setSnapshotCache((current) => ({ ...current, [snapshot.simulationId]: snapshot }));
+      }
+      setComparisonScenario(snapshot);
+      setFeedback(`Comparing current working scenario against saved scenario: ${snapshot.name}`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Unable to compare saved scenario.");
     } finally {
       setLoading(false);
     }
@@ -179,6 +347,12 @@ export default function SimulatorPage() {
         await fetchJson<any>(`/simulations/${simulationId}`, { method: "DELETE" });
       }
       setSavedScenarios((current) => current.filter((item) => item.simulationId !== simulationId));
+      setSnapshotCache((current) => {
+        const next = { ...current };
+        delete next[simulationId];
+        return next;
+      });
+      setComparisonScenario((current) => (current?.simulationId === simulationId ? null : current));
       setFeedback("Saved scenario removed.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to delete scenario.");
@@ -191,16 +365,20 @@ export default function SimulatorPage() {
     const next = PRESETS[preset];
     if (!next) return;
     setInputs(next);
+    setScenarioName(preset);
     setFeedback(`Preset applied: ${preset}`);
   }
 
   function resetScenario() {
     setInputs(INITIAL_INPUTS);
+    setScenarioName("Miss Another Payment");
+    setComparisonScenario(null);
     setFeedback("Scenario reset to baseline demo inputs.");
   }
 
   function updateInput<K extends keyof ScenarioInputs>(key: K, value: ScenarioInputs[K]) {
     setInputs((current) => ({ ...current, [key]: value }));
+    setScenarioName((current) => (PRESETS[current] ? "Custom Scenario" : current));
   }
 
   return (
@@ -235,6 +413,16 @@ export default function SimulatorPage() {
           <div style={{ marginTop: 10, color: "var(--text-muted)" }}>
             {changedFieldCount} scenario field{changedFieldCount === 1 ? "" : "s"} differ from the default demo setup.
           </div>
+          <label style={{ ...fieldLabelStyle, marginTop: 16 }}>
+            <div style={fieldTitleStyle}>Working scenario name</div>
+            <div style={fieldHintStyle}>This name is used when you save or reload the current scenario.</div>
+            <input
+              type="text"
+              value={scenarioName}
+              onChange={(event) => setScenarioName(event.target.value || "Custom Scenario")}
+              style={inputStyle}
+            />
+          </label>
         </section>
         <section style={panelStyle}>
           <h2 style={panelTitleStyle}>Quick Presets</h2>
@@ -409,6 +597,63 @@ export default function SimulatorPage() {
               </ul>
             </div>
           </div>
+
+          {comparisonScenario ? (
+            <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Saved Scenario Comparison</div>
+                  <div style={{ color: "var(--text-muted)", marginTop: 4 }}>
+                    Comparing the working scenario against `{comparisonScenario.name}`.
+                  </div>
+                </div>
+                <button style={secondaryButtonStyle} onClick={() => setComparisonScenario(null)} disabled={loading}>
+                  Clear Compare
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={comparisonCardStyle}>
+                  <div style={smallLabelStyle}>Working Scenario</div>
+                  <div style={{ marginTop: 8, fontSize: 22, fontWeight: 700 }}>{scenarioName}</div>
+                  <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
+                    {result.riskLevel} | Score {result.riskScore} | Approval {result.approvalRequired}
+                  </div>
+                  <div style={{ marginTop: 10, fontWeight: 700 }}>{result.action}</div>
+                </div>
+                <div style={comparisonCardStyle}>
+                  <div style={smallLabelStyle}>Saved Scenario</div>
+                  <div style={{ marginTop: 8, fontSize: 22, fontWeight: 700 }}>{comparisonScenario.name}</div>
+                  <div style={{ color: "var(--text-muted)", marginTop: 6 }}>
+                    {comparisonScenario.result.riskLevel} | Score {comparisonScenario.result.riskScore} | Approval{" "}
+                    {comparisonScenario.result.approvalRequired}
+                  </div>
+                  <div style={{ marginTop: 10, fontWeight: 700 }}>{comparisonScenario.result.action}</div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Working drivers</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {result.topDrivers.map((driver) => (
+                      <span key={driver} style={softChipStyle}>
+                        {driver}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Saved scenario drivers</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {comparisonScenario.result.topDrivers.map((driver) => (
+                      <span key={driver} style={miniChipStyle}>
+                        {driver}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section style={{ display: "grid", gap: 20 }}>
@@ -427,8 +672,15 @@ export default function SimulatorPage() {
               The simulator reruns the case logic using your updated profile and payment inputs. That lets the user see
               whether the account stays in monitored recovery or tips into escalation.
             </p>
+            <div style={{ color: "var(--text-muted)", marginBottom: 10 }}>
+              Working scenario: {scenarioName} | Active simulation: {activeSimulationId}
+              {modelUsed ? ` | Model: ${modelUsed}` : ""}
+            </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link href="/traces" style={secondaryLinkStyle}>
+              <Link
+                href={traceReference.traceAvailable ? `/traces?runId=${traceReference.simulationRunId}&caseId=${simulationData.caseId}` : `/traces?caseId=${simulationData.caseId}`}
+                style={secondaryLinkStyle}
+              >
                 Open Simulation Trace
               </Link>
               <button style={secondaryButtonStyle} onClick={() => void saveScenario()} disabled={loading}>
@@ -448,13 +700,33 @@ export default function SimulatorPage() {
                       {scenario.risk} | {scenario.approval}
                     </div>
                   </div>
-                  <button
-                    style={inlineDangerButtonStyle}
-                    onClick={() => void deleteScenario(scenario.simulationId)}
-                    disabled={loading}
-                  >
-                    Delete
-                  </button>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {!scenario.simulationId.startsWith("local-") ? (
+                      <>
+                        <button
+                          style={secondaryButtonStyle}
+                          onClick={() => void compareScenario(scenario.simulationId)}
+                          disabled={loading}
+                        >
+                          Compare
+                        </button>
+                        <button
+                          style={secondaryButtonStyle}
+                          onClick={() => void loadScenario(scenario.simulationId)}
+                          disabled={loading}
+                        >
+                          Load
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      style={inlineDangerButtonStyle}
+                      onClick={() => void deleteScenario(scenario.simulationId)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

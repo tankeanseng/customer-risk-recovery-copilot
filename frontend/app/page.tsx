@@ -24,10 +24,10 @@ export default function OverviewPage() {
           <h1 style={{ margin: "8px 0 12px", fontSize: 34 }}>{overviewData.hero.title}</h1>
           <p style={{ margin: 0, color: "var(--text-muted)", maxWidth: 720 }}>{overviewData.hero.subtitle}</p>
           <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
-            <ActionLink href="/cases/case_012" primary>
+            <ActionLink href="/?walkthrough=demo&step=overview" primary>
               Launch Demo Walkthrough
             </ActionLink>
-            <ActionLink href="/architecture">Open Architecture</ActionLink>
+            <ActionLink href="/architecture?walkthrough=demo&step=architecture">Open Architecture</ActionLink>
             <ActionLink href="/portfolio">View Portfolio</ActionLink>
           </div>
         </div>
@@ -91,10 +91,10 @@ export default function OverviewPage() {
                 </div>
                 <div style={{ marginTop: 10, color: "var(--text-muted)" }}>{item.recommendation}</div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <ActionLink href={`/cases/${item.caseId}`} primary>
+                  <ActionLink href={`/cases/${item.caseId}?walkthrough=demo&step=case`} primary>
                     Open Case
                   </ActionLink>
-                  <ActionLink href="/traces">View Trace</ActionLink>
+                  <ActionLink href={`/traces?caseId=${item.caseId}&walkthrough=demo&step=trace`}>View Trace</ActionLink>
                 </div>
               </div>
             ))}
@@ -109,7 +109,7 @@ export default function OverviewPage() {
                 <div style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   {run.status} | {run.node} | {run.elapsed}
                 </div>
-                <ActionLink href="/traces">Open Trace</ActionLink>
+                <ActionLink href={`/traces?walkthrough=demo&step=trace&runId=${run.runId}`}>Open Trace</ActionLink>
               </div>
             ))}
           </Panel>
@@ -123,8 +123,8 @@ export default function OverviewPage() {
                     {approval.action} | {approval.priority} | waiting {approval.waiting}
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                    <ActionLink href="/approvals">Open Approval</ActionLink>
-                    <ActionLink href={`/cases/${approval.caseId}`}>Open Case</ActionLink>
+                    <ActionLink href="/approvals?walkthrough=demo&step=approvals">Open Approval</ActionLink>
+                    <ActionLink href={`/cases/${approval.caseId}?walkthrough=demo&step=case`}>Open Case</ActionLink>
                   </div>
                 </div>
               ))}
@@ -143,7 +143,7 @@ export default function OverviewPage() {
               </li>
             ))}
           </ol>
-          <ActionLink href={`/cases/${overviewData.demoWalkthrough.recommendedCaseId}`} primary>
+          <ActionLink href="/?walkthrough=demo&step=overview" primary>
             Start Guided Demo
           </ActionLink>
         </Panel>
@@ -157,9 +157,9 @@ export default function OverviewPage() {
             <div>Triage pass timestamp: 2026-03-26 09:00</div>
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-            <ActionLink href="/evaluation">View Evaluation</ActionLink>
-            <ActionLink href="/optimization">View Optimization</ActionLink>
-            <ActionLink href="/architecture">View Triage Logic</ActionLink>
+            <ActionLink href="/evaluation?walkthrough=demo&step=evaluation">View Evaluation</ActionLink>
+            <ActionLink href="/optimization?walkthrough=demo&step=optimization">View Optimization</ActionLink>
+            <ActionLink href="/architecture?walkthrough=demo&step=architecture">View Triage Logic</ActionLink>
           </div>
         </Panel>
       </section>

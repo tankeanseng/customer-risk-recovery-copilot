@@ -15,6 +15,9 @@ type RunDetail = {
     customer_id: string;
     customer_name: string;
     status: string;
+    workflow_name?: string | null;
+    source_surface?: string | null;
+    approval_id?: string | null;
     started_at: string;
     ended_at: string;
     duration_ms: number;
@@ -137,14 +140,17 @@ export function TracesClient() {
 
   const activeRunId = trace?.run.run_id ?? traceData.runId;
   const activeCaseId = trace?.run.case_id ?? requestedCaseId;
+  const isApprovalWorkflow = trace?.run.workflow_name === "approval_resume_workflow";
 
   const summaryCards = useMemo(() => {
     if (trace) {
       return [
         ["Run ID", trace.run.run_id],
         ["Customer", trace.run.customer_name],
+        ["Workflow", startCase(trace.run.workflow_name ?? "live_case_review")],
         ["Status", startCase(trace.run.status)],
         ["Active Node", trace.workflow_nodes.at(-1)?.label ?? "Live Case Review"],
+        ["Surface", startCase(trace.run.source_surface ?? "customer_case_page")],
         ["Duration", `${(trace.run.duration_ms / 1000).toFixed(1)}s`],
         ["Estimated Cost", `$${trace.run.estimated_cost_usd.toFixed(4)}`],
       ];
@@ -256,7 +262,7 @@ export function TracesClient() {
 
       {comparison ? (
         <section style={panelStyle}>
-          <h2 style={panelTitleStyle}>Baseline Comparison</h2>
+          <h2 style={panelTitleStyle}>{isApprovalWorkflow ? "Approval Resume Summary" : "Baseline Comparison"}</h2>
           <ul style={{ margin: 0, paddingLeft: 18, color: "var(--text-muted)" }}>
             {comparison.map((item) => (
               <li key={item} style={{ marginBottom: 8 }}>
@@ -264,6 +270,24 @@ export function TracesClient() {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {trace && isApprovalWorkflow ? (
+        <section style={panelStyle}>
+          <h2 style={panelTitleStyle}>Approval Resume Context</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }}>
+            <div style={{ color: "var(--text-muted)" }}>Approval ID</div>
+            <div>{trace.run.approval_id ?? "Unknown"}</div>
+            <div style={{ color: "var(--text-muted)" }}>Source surface</div>
+            <div>{startCase(trace.run.source_surface ?? "approval_queue")}</div>
+            <div style={{ color: "var(--text-muted)" }}>Originating case</div>
+            <div>
+              <Link href={`/cases/${activeCaseId}`} style={{ color: "var(--accent)", fontWeight: 700 }}>
+                Open case detail
+              </Link>
+            </div>
+          </div>
         </section>
       ) : null}
 

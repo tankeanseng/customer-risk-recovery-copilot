@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException
 
-from app.data.mock_store import RUN_COMPARISONS, RUN_DETAILS, RUN_STATUSES
 from app.schemas.cases import CaseActionResponse
 from app.schemas.runs import RunCompareResponse, RunDetailResponse, RunHistoryResponse, RunStatusResponse
 from app.services.run_traces import (
@@ -10,6 +9,7 @@ from app.services.run_traces import (
     get_live_run_history_for_case,
     replay_live_run,
 )
+from app.services.runtime_state import load_runtime_state
 
 router = APIRouter()
 
@@ -20,7 +20,8 @@ async def get_latest_run_for_case(case_id: str) -> RunDetailResponse:
     if live_run is not None:
         return live_run
 
-    fallback = next((run for run in RUN_DETAILS.values() if run.run.case_id == case_id), None)
+    state = load_runtime_state()
+    fallback = next((run for run in state.run_details.values() if run.run.case_id == case_id), None)
     if fallback is not None:
         return fallback
 
@@ -33,7 +34,8 @@ async def get_run_history_for_case(case_id: str) -> RunHistoryResponse:
     if history is not None:
         return history
 
-    fallback_runs = [run for run in RUN_DETAILS.values() if run.run.case_id == case_id]
+    state = load_runtime_state()
+    fallback_runs = [run for run in state.run_details.values() if run.run.case_id == case_id]
     if fallback_runs:
         return RunHistoryResponse(
             case_id=case_id,
@@ -56,7 +58,8 @@ async def get_run_history_for_case(case_id: str) -> RunHistoryResponse:
 
 @router.get("/runs/{run_id}", response_model=RunDetailResponse)
 async def get_run(run_id: str) -> RunDetailResponse:
-    run = RUN_DETAILS.get(run_id)
+    state = load_runtime_state()
+    run = state.run_details.get(run_id)
     if run is not None:
         return run
 
@@ -69,7 +72,8 @@ async def get_run(run_id: str) -> RunDetailResponse:
 
 @router.get("/runs/{run_id}/status", response_model=RunStatusResponse)
 async def get_run_status(run_id: str) -> RunStatusResponse:
-    status = RUN_STATUSES.get(run_id)
+    state = load_runtime_state()
+    status = state.run_statuses.get(run_id)
     if status is None:
         raise HTTPException(status_code=404, detail=f"Run status for {run_id} not found")
     return status
@@ -77,7 +81,8 @@ async def get_run_status(run_id: str) -> RunStatusResponse:
 
 @router.post("/runs/{run_id}/replay", response_model=CaseActionResponse)
 async def replay_run(run_id: str) -> CaseActionResponse:
-    run = RUN_DETAILS.get(run_id)
+    state = load_runtime_state()
+    run = state.run_details.get(run_id)
     if run is not None:
         return CaseActionResponse(
             case_id=run.run.case_id,
@@ -94,7 +99,8 @@ async def replay_run(run_id: str) -> CaseActionResponse:
 
 @router.get("/runs/{run_id}/compare", response_model=RunCompareResponse)
 async def compare_runs(run_id: str) -> RunCompareResponse:
-    comparison = RUN_COMPARISONS.get(run_id)
+    state = load_runtime_state()
+    comparison = state.run_comparisons.get(run_id)
     if comparison is not None:
         return comparison
 

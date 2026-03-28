@@ -29,16 +29,16 @@ Use this as the running checklist so we do not miss pages, workflows, or integra
 - structured output validation with Pydantic
 - LangSmith tracing for the live case-review workflow
 - first LangGraph case-review workflow (`intake -> review -> policy`)
+- first MCP-backed tool access in the intake step
 - model evaluation harness for case review
 
 ### Major platform pieces not yet implemented
 
-- MCP server/tool integration
-- AI-powered simulator
 - guided walkthrough across the full app
 - deployment packaging for CloudFront + Lambda
 - S3-backed data loading and persistence strategy
 - deeper multi-agent LangGraph orchestration beyond the first workflow slice
+- broader MCP expansion beyond the first tool-call slice
 
 ## Priority 0: Must Finish Before Demo Story Is Complete
 
@@ -60,15 +60,19 @@ Status:
   - `Review Node`
   - `Policy Node`
   - `Model Call`
+- real MCP tool calls now appear in live traces:
+  - `customer-profile-mcp`
+  - `ar-analytics-mcp`
+  - `notes-policy-mcp`
 - UI still falls back to demo data when no live trace is available
 
 Remaining work:
 
 - support richer run history instead of only latest-by-case
 - expose explicit live trace/run identifiers more widely across the app
-- add deeper LangSmith metadata display in the trace page
+- add even deeper LangSmith metadata display in the trace page
 - show richer timeline detail as more workflow steps exist
-- later replace placeholder MCP section with real MCP tool-call traces
+- deepen the MCP section with richer argument/output rendering and, later, resources/prompts
 
 Dependencies:
 
@@ -79,24 +83,30 @@ Dependencies:
 
 Status:
 
-- planned in docs only
-- not implemented
+- implemented as a route-aware guided overlay
+- walkthrough entry points now exist on:
+  - sidebar recommended demo card
+  - Overview hero
+  - Overview guided demo panel
+  - Portfolio page
+- current guided path covers:
+  - Overview
+  - Portfolio
+  - Customer Case
+  - Trace
+  - Simulator
+  - Approvals
+  - Evaluation
+  - Optimization
+  - Data Explorer
+  - Architecture
 
 Remaining work:
 
-- define the final guided path across all major pages
-- add walkthrough entry points on Overview and Portfolio
-- create contextual walkthrough hints for:
-  - triage
-  - case review
-  - live AI review
-  - trace
-  - simulator
-  - approvals
-  - evaluation
-  - architecture
-- ensure walkthrough never routes users into unfinished or confusing flows
-- include a LangSmith explanation step after users have seen a live case review
+- deepen page-specific wording as more workflow states become live
+- add more explicit approval/resume guidance once paused workflows exist
+- later add walkthrough-aware highlighting of real run ids and richer trace metadata
+- keep the LangSmith explanation step aligned with the actual trace UI as it evolves
 
 Dependencies:
 
@@ -107,13 +117,18 @@ Dependencies:
 Status:
 
 - slice-by-slice testing exists
-- no final full-app acceptance pass yet
+- browser-based cross-page QA exists with Playwright against exported frontend + live backend
+- core multi-page flows are now exercised end to end:
+  - navigation and page rendering
+  - live case review
+  - approval submission and decision
+  - trace navigation
+  - simulator edit/run/save/load/compare/delete
 
 Remaining work:
 
 - create a final demo acceptance checklist
-- test all nav paths from Overview
-- test all major buttons and action feedback states
+- expand coverage to every remaining low-frequency action and edge-case button state
 - test happy path walkthrough end to end
 - test fallback behavior when live AI fails
 - test static export and clean-route deployment assumptions
@@ -221,13 +236,13 @@ Already present:
 - live AI review button
 - approval request button
 - links to simulator and trace
+- approval request now returns a real approval id and links directly into the approval detail page
+- case detail now refreshes from the real backend after actions
+- case detail now surfaces latest run, approval, and case-state linkage more clearly
 
 Remaining work:
 
-- refresh local case state after live review
-- persist and show latest real run id
-- connect `View Full Trace` to a real run-specific trace route
-- improve approval request state transition on the page
+- refresh broader local case narrative after live review
 - show more explicit live-vs-baseline review state
 - later support paused-for-approval and resumed states
 
@@ -238,14 +253,15 @@ Already present:
 - approval queue page
 - detail view
 - approve/reject/revise actions
+- queue and case state now update after decisions
+- approval detail now shows latest run linkage
+- approved decisions now create a real traced approval-resume workflow and trace link target
+- case page can now create a new approval request dynamically
 
 Remaining work:
 
-- make queue state update after decisions
-- reflect case status transitions after approve/reject/revise
-- add resumed run linkage where appropriate
-- later connect decisions to a real paused workflow instead of mock mutation-only responses
-- add trace links from approval detail
+- add richer approval-specific trace timeline detail
+- surface approval state refresh more deeply across all already-open pages
 
 Dependencies:
 
@@ -256,16 +272,22 @@ Dependencies:
 Already present:
 
 - editable controls
-- deterministic backend simulation
+- live AI-backed simulation using the existing LangGraph review workflow
+- MCP-backed simulator intake now stays live even when stdio subprocess transport is unavailable locally, via in-process tool fallback
 - save/delete scenarios
+- load a saved scenario back into the working form
+- compare the current working scenario against a selected saved scenario
+- real simulation trace ids
+- LangSmith-backed simulation traces
+- MCP-backed simulation context through the intake step
+- live-generated simulations are now persisted in the local runtime state store
+- saved scenario names now persist instead of collapsing into a generic placeholder label
 
 Remaining work:
 
-- support loading a saved scenario back into the form
-- support compare-against-selected-saved-scenario
-- generate and surface a real trace reference
-- upgrade simulation logic from deterministic rules to real AI-backed scenario analysis
-- add LangSmith tracing for simulation runs
+- deepen the explanation panel with more explicit live-vs-baseline reasoning
+- add richer trace-specific simulation labeling if desired
+- continue quality regression checks across more scenario variants as the prompt/workflow evolves
 
 Dependencies:
 
@@ -279,11 +301,11 @@ Already present:
 - overview dashboard
 - portfolio filters/search
 - links into cases and approvals
+- walkthrough entry points
 
 Remaining work:
 
 - improve refresh behavior from real backend responses
-- make recommended demo walkthrough entry feel guided
 - ensure highlighted cases line up with the final walkthrough
 - add deeper link consistency with real run and approval ids
 
@@ -311,7 +333,6 @@ Remaining work:
   - Recovery Strategy Agent
 - define graph state model
 - persist node outputs and statuses more durably
-- support approval interrupts and resume paths
 - broaden LangGraph outputs beyond the current case-review trace page integration
 
 Why it matters:
@@ -322,19 +343,22 @@ Why it matters:
 
 Current status:
 
-- planned only
-- no MCP client/server integration in code yet
-
-Remaining work:
-
-- explain MCP before first implementation
-- decide whether to mock MCP servers locally first or implement lightweight real ones
-- integrate the first MCP-backed tool calls for:
+- first slice implemented
+- local stdio MCP servers now exist for:
   - customer profile
   - AR analytics
   - notes/policy
-  - case actions
-- surface MCP tool calls in LangGraph and the Trace page
+- live case review now performs real MCP tool calls during intake
+- trace page now shows real MCP tool calls from live traces
+
+Remaining work:
+
+- explain the current MCP slice in walkthrough/docs clearly
+- add `case-actions-mcp`
+- expand from tools-only into richer resources/prompts where useful
+- decide which MCP servers stay local versus become remote later
+- surface richer MCP arguments/results in the Trace page
+- later use MCP for more of the data explorer and approval flows
 
 Why it matters:
 
@@ -351,8 +375,6 @@ Current status:
 
 Remaining work:
 
-- trace simulator runs
-- trace approval-related workflow steps later
 - publish or connect eval runs to LangSmith traces
 - add trace links from case page and approvals page
 - expand tracing as the LangGraph workflow becomes more agentic
@@ -361,19 +383,21 @@ Remaining work:
 
 Current status:
 
-- mostly mock/demo state
-- no durable persistence for live run history
+- local file-backed runtime state store is now implemented
+- dynamic case queue state, approvals, resumed runs, and simulations now persist across requests
+- storage boundary is shaped so local file storage can later be swapped to S3-backed blobs for Lambda deployment
 
 Remaining work:
 
 - define where run history lives for deployed environment
-- likely start with S3-backed JSON snapshots or a lightweight store
+- replace the local blob store with S3-backed JSON snapshots or a lightweight managed store in AWS
 - persist:
   - run ids
   - recommendation outputs
   - trace references
   - saved simulations
   - approval decision history
+- decide whether live case-review results should also be snapshotted more explicitly for later analytics/evals
 
 Why it matters:
 
@@ -401,6 +425,7 @@ Remaining work:
 Current status:
 
 - mock data currently lives in repo files
+- runtime state persistence now has a local blob-store abstraction ready to swap to S3 later
 
 Remaining work:
 
@@ -468,12 +493,12 @@ Remaining work:
 
 ## Recommended Build Order From Here
 
-1. Introduce `MCP`.
-2. Expand the LangGraph workflow beyond the first case-review slice.
-3. Expand LangSmith to simulator, evals, and approval/resume flows.
-4. Upgrade the simulator to real AI-backed analysis.
-5. Add the final guided walkthrough.
-6. Do final deployment-readiness and end-to-end QA.
+1. Expand the LangGraph workflow beyond the first case-review slice.
+2. Expand LangSmith to approval/resume flows and richer trace metadata.
+3. Deepen approval and customer-case state transitions.
+4. Add final full-app acceptance QA and deployment-hardening passes.
+4. Add real run persistence suitable for CloudFront + Lambda deployment.
+5. Do final deployment-readiness and end-to-end QA.
 
 ## Final Rule For Future Work
 

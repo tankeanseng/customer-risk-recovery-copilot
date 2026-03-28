@@ -82,6 +82,16 @@ def _extract_recommendation(root_run: Any, child_runs: list[Any]) -> dict[str, A
     return {}
 
 
+def _workflow_root_name(run: Any) -> str:
+    metadata = getattr(run, "metadata", {}) or {}
+    workflow_name = str(metadata.get("workflow_name") or getattr(run, "name", "") or "")
+    if workflow_name == "live_case_review":
+        return "live_case_review"
+    if workflow_name == "approval_resume_workflow":
+        return "approval_resume_workflow"
+    return str(getattr(run, "name", "") or workflow_name)
+
+
 def _get_project_runs(limit: int = 100) -> list[Any]:
     if not _langsmith_enabled():
         return []
@@ -91,7 +101,9 @@ def _get_project_runs(limit: int = 100) -> list[Any]:
 
 def _find_root_run(runs: list[Any], *, run_id: str | None = None, case_id: str | None = None) -> Any | None:
     for run in runs:
-        if getattr(run, "name", None) != "live_case_review":
+        if getattr(run, "parent_run_id", None):
+            continue
+        if _workflow_root_name(run) not in {"live_case_review", "approval_resume_workflow"}:
             continue
         metadata = getattr(run, "metadata", {}) or {}
         if run_id and str(getattr(run, "id", "")) == run_id:
@@ -104,7 +116,9 @@ def _find_root_run(runs: list[Any], *, run_id: str | None = None, case_id: str |
 def _root_runs_for_case(runs: list[Any], case_id: str) -> list[Any]:
     matched = []
     for run in runs:
-        if getattr(run, "name", None) != "live_case_review":
+        if getattr(run, "parent_run_id", None):
+            continue
+        if _workflow_root_name(run) not in {"live_case_review", "approval_resume_workflow"}:
             continue
         metadata = getattr(run, "metadata", {}) or {}
         if metadata.get("case_id") == case_id:
@@ -135,15 +149,24 @@ def _find_descendant_runs(runs: list[Any], root_run_id: str) -> list[Any]:
 
 def _build_run_detail_from_langsmith(root_run: Any, child_runs: list[Any]) -> RunDetailResponse:
     metadata = getattr(root_run, "metadata", {}) or {}
+    workflow_name = _workflow_root_name(root_run)
     recommendation = _extract_recommendation(root_run, child_runs)
     start_time = getattr(root_run, "start_time", None)
     end_time = getattr(root_run, "end_time", None)
     provider_model = metadata.get("provider_model")
     model_call_runs = [run for run in child_runs if getattr(run, "name", None) == "case_review_model_call"]
+    mcp_tool_runs = [run for run in child_runs if getattr(run, "name", None) == "mcp_tool_call"]
     graph_step_runs = [
         run
         for run in child_runs
-        if getattr(run, "name", None) in {"case_review_intake_node", "case_review_review_node", "case_review_policy_node"}
+        if getattr(run, "name", None)
+        in {
+            "case_review_intake_node",
+            "case_review_review_node",
+            "case_review_policy_node",
+            "approval_resume_decision_node",
+            "approval_resume_dispatch_node",
+        }
     ]
 
     if provider_model is None and model_call_runs:
@@ -155,27 +178,40 @@ def _build_run_detail_from_langsmith(root_run: Any, child_runs: list[Any]) -> Ru
         customer_id=f"customer_for_{metadata.get('case_id', 'unknown_case')}",
         customer_name=metadata.get("customer_name", "Unknown customer"),
         status=_status_for_run(root_run),
+        workflow_name=workflow_name,
+        source_surface=metadata.get("review_surface"),
+        approval_id=metadata.get("approval_id"),
         started_at=start_time.isoformat() if start_time else "",
         ended_at=end_time.isoformat() if end_time else "",
         duration_ms=_duration_ms(start_time, end_time),
         estimated_cost_usd=float(getattr(root_run, "total_cost", 0.0) or 0.0),
-        approval_interrupt_occurred=bool(metadata.get("hard_trigger_hit", False)),
+        approval_interrupt_occurred=bool(
+            metadata.get("hard_trigger_hit", False) or workflow_name == "approval_resume_workflow"
+        ),
     )
 
+    root_label = "Live Case Review" if workflow_name == "live_case_review" else "Approval Resume Workflow"
+    root_summary = (
+        recommendation.get("recommended_action", "Structured case review completed.")
+        if workflow_name == "live_case_review"
+        else recommendation.get("summary", "Approval resume workflow completed.")
+    )
     workflow_nodes = [
         WorkflowNodeSummary(
-            node_id="live_case_review",
-            label="Live Case Review",
+            node_id=workflow_name,
+            label=root_label,
             status=_status_for_run(root_run),
             duration_ms=_duration_ms(start_time, end_time),
-            model=provider_model or "unknown",
-            summary=recommendation.get("recommended_action", "Structured case review completed."),
+            model=provider_model,
+            summary=root_summary,
         )
     ]
     node_labels = {
         "case_review_intake_node": "Intake Node",
         "case_review_review_node": "Review Node",
         "case_review_policy_node": "Policy Node",
+        "approval_resume_decision_node": "Approval Decision Node",
+        "approval_resume_dispatch_node": "Execution Dispatch Node",
     }
 
     model_routing: list[ModelRoutingEntry] = []
@@ -183,7 +219,11 @@ def _build_run_detail_from_langsmith(root_run: Any, child_runs: list[Any]) -> Ru
         RunEvent(
             event_type="run_started",
             timestamp=summary.started_at,
-            summary=f"Live case review started for {summary.customer_name}.",
+            summary=(
+                f"Live case review started for {summary.customer_name}."
+                if workflow_name == "live_case_review"
+                else f"Approval resume workflow started for {summary.customer_name}."
+            ),
         )
     ]
 
@@ -264,30 +304,62 @@ def _build_run_detail_from_langsmith(root_run: Any, child_runs: list[Any]) -> Ru
             RunEvent(
                 event_type="run_completed",
                 timestamp=end_time.isoformat(),
-                summary=f"Live case review completed with status {summary.status}.",
+                summary=(
+                    f"Live case review completed with status {summary.status}."
+                    if workflow_name == "live_case_review"
+                    else f"Approval resume workflow completed with status {summary.status}."
+                ),
             )
         )
 
     structured_outputs = [
         StructuredOutputEntry(
-            node_id="live_case_review",
-            title="Validated Recommendation",
+            node_id=workflow_name,
+            title="Validated Recommendation" if workflow_name == "live_case_review" else "Approval Resume Output",
             payload=_normalize_output_payload(recommendation),
         )
     ]
 
-    tool_calls: list[ToolCallTrace] = [
-        ToolCallTrace(
-            tool_call_id="toolcall_none",
-            node_id="live_case_review",
-            mcp_server="not_yet_connected",
-            tool_name="No MCP tools invoked",
-            status="completed",
-            latency_ms=0,
-            input_summary="Current live review uses direct model input from case payload.",
-            output_summary="MCP-backed data access will appear here after MCP integration.",
+    tool_calls: list[ToolCallTrace] = []
+    for index, tool_run in enumerate(mcp_tool_runs, start=1):
+        tool_outputs = getattr(tool_run, "outputs", {}) or {}
+        tool_metadata = getattr(tool_run, "metadata", {}) or {}
+        tool_start = getattr(tool_run, "start_time", None)
+        tool_end = getattr(tool_run, "end_time", None)
+        tool_calls.append(
+            ToolCallTrace(
+                tool_call_id=f"mcp_tool_{index}",
+                node_id="live_case_review",
+                mcp_server=str(tool_outputs.get("server_name") or tool_metadata.get("server_name") or "unknown_mcp"),
+                tool_name=str(tool_outputs.get("tool_name") or tool_metadata.get("tool_name") or "unknown_tool"),
+                status="failed" if getattr(tool_run, "error", None) else "completed",
+                latency_ms=_duration_ms(tool_start, tool_end),
+                input_summary=str(tool_outputs.get("arguments_summary", "Arguments unavailable")),
+                output_summary=str(tool_outputs.get("output_summary", "Tool output unavailable")),
+            )
         )
-    ]
+
+    if not tool_calls:
+        tool_calls.append(
+            ToolCallTrace(
+                tool_call_id="toolcall_none",
+                node_id=workflow_name,
+                mcp_server="not_yet_connected",
+                tool_name="No MCP tools invoked",
+                status="completed",
+                latency_ms=0,
+                input_summary=(
+                    "Current live review uses direct model input from case payload."
+                    if workflow_name == "live_case_review"
+                    else "Approval resume workflow currently uses manager decision context without MCP."
+                ),
+                output_summary=(
+                    "MCP-backed data access will appear here after MCP integration."
+                    if workflow_name == "live_case_review"
+                    else "No MCP tool call was needed for this approval resume flow."
+                ),
+            )
+        )
 
     return RunDetailResponse(
         run=summary,
@@ -335,17 +407,29 @@ def build_live_run_comparison(run_id: str) -> RunCompareResponse | None:
     child_runs = _find_descendant_runs(runs, str(root_run.id))
     detail = _build_run_detail_from_langsmith(root_run, child_runs)
     metadata = getattr(root_run, "metadata", {}) or {}
+    workflow_name = _workflow_root_name(root_run)
 
     structured = detail.structured_outputs[0].payload if detail.structured_outputs else {}
-    differences = [
-        f"Baseline risk band: {metadata.get('baseline_risk_band', 'Unknown')}",
-        f"Baseline triage score: {metadata.get('triage_score', 'Unknown')}",
-        f"Live recommendation: {structured.get('recommended_action', 'Unavailable')}",
-        f"Live risk band: {structured.get('risk_band', 'Unavailable')}",
-        f"Live risk score: {structured.get('risk_score', 'Unavailable')}",
-    ]
+    if workflow_name == "approval_resume_workflow":
+        differences = [
+            f"Approval ID: {structured.get('approval_id', metadata.get('approval_id', 'Unknown'))}",
+            f"Requested action: {structured.get('requested_action', metadata.get('requested_action', 'Unavailable'))}",
+            f"Final case status: {structured.get('case_status', 'Unavailable')}",
+            f"Manager comment: {structured.get('manager_comment', 'Unavailable')}",
+            f"Next step: {structured.get('next_step', 'Unavailable')}",
+        ]
+        baseline_run_id = metadata.get("approval_id", f"approval_{detail.run.case_id}")
+    else:
+        differences = [
+            f"Baseline risk band: {metadata.get('baseline_risk_band', 'Unknown')}",
+            f"Baseline triage score: {metadata.get('triage_score', 'Unknown')}",
+            f"Live recommendation: {structured.get('recommended_action', 'Unavailable')}",
+            f"Live risk band: {structured.get('risk_band', 'Unavailable')}",
+            f"Live risk score: {structured.get('risk_score', 'Unavailable')}",
+        ]
+        baseline_run_id = f"baseline_{detail.run.case_id}"
     return RunCompareResponse(
-        baseline_run_id=f"baseline_{detail.run.case_id}",
+        baseline_run_id=baseline_run_id,
         candidate_run_id=detail.run.run_id,
         differences=differences,
     )

@@ -2,19 +2,31 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
-from app.data.mock_store import SAVED_SIMULATIONS, SIMULATION_DETAILS
 from app.schemas.cases import CaseActionResponse
+from app.services.case_payloads import build_case_detail
+from app.services.case_review import (
+    LiveReviewUnavailableError,
+    build_case_review_trace_tags,
+    is_live_review_enabled,
+    policy_status_requires_approval,
+)
+from app.services.run_traces import get_latest_live_run_for_case, wait_for_live_run_by_id
+from app.services.runtime_state import load_runtime_state, save_runtime_state
+from app.services.simulation_review import (
+    apply_scenario_to_case_payload,
+    build_simulation_baseline,
+    build_simulation_delta_report,
+    build_simulation_summary_from_review,
+)
+from app.workflows.case_review_graph import build_graph_trace_metadata, run_case_review_graph
 from app.schemas.simulations import (
     AgentChangeSummary,
-    PolicyImpact,
     SavedSimulationSummary,
-    ScenarioInputs,
-    SimulationDeltaReport,
     SimulationExplanation,
     SimulationListResponse,
     SimulationResponse,
+    SimulationRunRequest,
     SimulationRunMeta,
-    SimulationSummary,
     TraceReference,
 )
 
@@ -22,180 +34,143 @@ router = APIRouter()
 
 
 @router.post("/cases/{case_id}/simulate", response_model=SimulationResponse)
-async def simulate_case(case_id: str, inputs: ScenarioInputs) -> SimulationResponse:
+def simulate_case(case_id: str, request: SimulationRunRequest) -> SimulationResponse:
     if case_id != "case_012":
         raise HTTPException(status_code=404, detail=f"No simulation demo configured for {case_id}")
 
-    baseline = SIMULATION_DETAILS["sim_301"].baseline
-    score = baseline.risk_score
-    changed_inputs: list[str] = []
-    changed_drivers: list[str] = []
-    policy_rules: list[str] = []
-
-    if inputs.days_overdue_delta != 0:
-        changed_inputs.append("days_overdue_delta")
-        score += max(0, inputs.days_overdue_delta) * 1
-        if inputs.days_overdue_delta >= 10:
-            changed_drivers.append("Overdue threshold pressure increased")
-
-    if inputs.outstanding_balance_delta != 0:
-        changed_inputs.append("outstanding_balance_delta")
-        score += max(0, int(inputs.outstanding_balance_delta / 2500))
-        if inputs.outstanding_balance_delta >= 7500:
-            changed_drivers.append("Overdue exposure increased")
-
-    if inputs.partial_payment_amount > 0:
-        changed_inputs.append("partial_payment_amount")
-        score -= min(10, int(inputs.partial_payment_amount / 1500))
-        changed_drivers.append("Partial payment improves recoverability")
-
-    if inputs.broken_promises_count_delta != 0:
-        changed_inputs.append("broken_promises_count_delta")
-        score += max(0, inputs.broken_promises_count_delta) * 6
-        if inputs.broken_promises_count_delta > 0:
-            changed_drivers.append("Missed commitment risk increased")
-
-    changed_inputs.extend(
-        field
-        for field, active in [
-            ("order_trend_state", inputs.order_trend_state != "declining"),
-            ("dispute_status", inputs.dispute_status != "closed"),
-            ("strategic_flag", inputs.strategic_flag),
-            ("credit_limit", inputs.credit_limit != 110000),
-            ("payment_terms_days", inputs.payment_terms_days != 30),
-            ("account_manager_confidence", inputs.account_manager_confidence != 42),
-        ]
-        if active and field not in changed_inputs
-    )
-
-    if inputs.order_trend_state == "sharply_declining":
-        score += 10
-        changed_drivers.append("Revenue trend deterioration accelerated")
-    elif inputs.order_trend_state == "declining":
-        score += 5
-        changed_drivers.append("Order decline is still active")
-    elif inputs.order_trend_state == "recovering":
-        score -= 7
-        changed_drivers.append("Order trend is recovering")
-
-    if inputs.dispute_status == "open":
-        score -= 5
-        changed_drivers.append("Open dispute softens direct collections pressure")
-
-    if inputs.strategic_flag:
-        score += 4
-        changed_drivers.append("Strategic account requires exception caution")
-
-    if inputs.credit_limit < 100000:
-        score += 3
-        changed_drivers.append("Reduced credit headroom increases control urgency")
-
-    if inputs.payment_terms_days <= 21:
-        score += 2
-    elif inputs.payment_terms_days >= 45:
-        score -= 2
-
-    if inputs.account_manager_confidence >= 65:
-        score -= 4
-        changed_drivers.append("Relationship confidence improved")
-    elif inputs.account_manager_confidence <= 40:
-        score += 5
-        changed_drivers.append("Account owner confidence is weakening")
-
-    score = max(20, min(score, 96))
-
-    if score >= 82:
-        risk_level = "Critical"
-        recommended_action = "Pause new credit orders and escalate to finance manager approval"
-    elif score >= 74:
-        risk_level = "High"
-        recommended_action = "Escalate to finance manager and prepare credit limit reduction review"
-    elif score >= 58:
-        risk_level = "Watchlist"
-        recommended_action = "Schedule monitored recovery call and review payment progress in 7 days"
-    elif score >= 42:
-        risk_level = "Monitor"
-        recommended_action = "Monitor with tighter follow-up cadence"
-    else:
-        risk_level = "Low"
-        recommended_action = "No immediate action; continue baseline monitoring"
-
-    approval_required = risk_level in {"High", "Critical"} or inputs.strategic_flag
-
-    if approval_required:
-        policy_rules.append("Manager approval now mandatory")
-    if inputs.days_overdue_delta >= 10 or inputs.outstanding_balance_delta >= 7500:
-        policy_rules.append("High exposure escalation threshold")
-    if inputs.broken_promises_count_delta > 0:
-        policy_rules.append("Repeated commitment breach watch rule")
-    if inputs.dispute_status == "open":
-        policy_rules.append("Dispute moderation rule")
-
-    scenario_result = SimulationSummary(
-        risk_level=risk_level,
-        risk_score=score,
-        recommended_action=recommended_action,
-        approval_required=approval_required,
-        top_drivers=(changed_drivers or ["Scenario changes did not materially alter key drivers"])[:3],
-    )
-
+    inputs = request.inputs
+    scenario_name = request.scenario_name.strip() if request.scenario_name else "Custom Scenario"
+    detail = build_case_detail(case_id)
+    baseline = build_simulation_baseline(case_id)
+    scenario_payload, changed_inputs, changed_drivers, policy_rules = apply_scenario_to_case_payload(detail, inputs)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    simulation_id = "sim_live_case_012"
-    return SimulationResponse(
+    simulation_id = f"sim_live_{case_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    state = load_runtime_state()
+
+    if is_live_review_enabled():
+        try:
+            review, model_used, trace_run_id = run_case_review_graph(
+                scenario_payload,
+                langsmith_extra={
+                    "metadata": {
+                        **build_graph_trace_metadata(scenario_payload),
+                        "review_surface": "simulator_page",
+                        "simulation_mode": True,
+                    },
+                    "tags": [*build_case_review_trace_tags(scenario_payload), "surface:simulator"],
+                },
+            )
+            exact_trace = wait_for_live_run_by_id(trace_run_id) if trace_run_id is not None else None
+            latest_trace = exact_trace or get_latest_live_run_for_case(case_id)
+            approval_required = (
+                review.risk_band in {"High", "Critical"}
+                or policy_status_requires_approval(review.policy_status)
+                or scenario_payload["triage"]["hard_trigger_hit"]
+            )
+            scenario_result = build_simulation_summary_from_review(review, approval_required=approval_required)
+            delta_report = build_simulation_delta_report(
+                baseline=baseline,
+                scenario_result=scenario_result,
+                changed_inputs=changed_inputs,
+                changed_drivers=changed_drivers,
+                policy_rules=policy_rules,
+            )
+            response = SimulationResponse(
+                simulation=SimulationRunMeta(
+                    simulation_id=simulation_id,
+                    case_id=case_id,
+                    scenario_name=scenario_name,
+                    status="completed",
+                    started_at=now,
+                    ended_at=now,
+                    duration_ms=4200,
+                    model_used=model_used,
+                ),
+                inputs=inputs,
+                baseline=baseline,
+                scenario_result=scenario_result,
+                delta_report=delta_report,
+                explanation=SimulationExplanation(
+                    summary=(
+                        "The simulator reran the live AI review workflow on a scenario-adjusted customer case payload, "
+                        "including MCP context lookups and LangGraph orchestration."
+                    ),
+                    agent_changes=[
+                        AgentChangeSummary(
+                            agent="Financial Risk Agent",
+                            change=f"Risk moved from {baseline.risk_level} ({baseline.risk_score}) to {scenario_result.risk_level} ({scenario_result.risk_score}).",
+                        ),
+                        AgentChangeSummary(
+                            agent="Policy Check Agent",
+                            change=(
+                                "Approval is now required."
+                                if delta_report.policy_impact.approval_state_changed and scenario_result.approval_required
+                                else "Approval requirement is unchanged."
+                            ),
+                        ),
+                        AgentChangeSummary(
+                            agent="Model Runtime",
+                            change=f"Simulation used {model_used} for the live scenario review.",
+                        ),
+                    ],
+                ),
+                trace_reference=TraceReference(
+                    simulation_run_id=(exact_trace.run.run_id if exact_trace is not None else (latest_trace.run.run_id if latest_trace is not None else "run_sim_unavailable")),
+                    trace_available=latest_trace is not None,
+                ),
+            )
+            state.simulation_details[simulation_id] = response
+            save_runtime_state(state)
+            return response
+        except (LiveReviewUnavailableError, Exception):
+            pass
+
+    baseline_demo = state.simulation_details["sim_301"].baseline
+    response = SimulationResponse(
         simulation=SimulationRunMeta(
             simulation_id=simulation_id,
             case_id=case_id,
-            scenario_name="Live Scenario",
+            scenario_name=scenario_name,
             status="completed",
             started_at=now,
             ended_at=now,
             duration_ms=2400,
+            model_used=None,
         ),
         inputs=inputs,
-        baseline=baseline,
-        scenario_result=scenario_result,
-        delta_report=SimulationDeltaReport(
-            changed_inputs=changed_inputs or ["none"],
-            risk_level_before=baseline.risk_level,
-            risk_level_after=scenario_result.risk_level,
-            action_before=baseline.recommended_action,
-            action_after=scenario_result.recommended_action,
-            top_changed_drivers=(changed_drivers or ["No major recommendation shift"])[:3],
-            policy_impact=PolicyImpact(
-                newly_triggered_rules=policy_rules or ["No new policy rules triggered"],
-                approval_state_changed=baseline.approval_required != scenario_result.approval_required,
-            ),
+        baseline=baseline_demo,
+        scenario_result=baseline_demo,
+        delta_report=build_simulation_delta_report(
+            baseline=baseline_demo,
+            scenario_result=baseline_demo,
+            changed_inputs=changed_inputs,
+            changed_drivers=changed_drivers,
+            policy_rules=policy_rules,
         ),
         explanation=SimulationExplanation(
             summary=(
-                "The simulation recalculated the recommendation using the updated customer profile, payment stress, "
-                "and relationship signals."
+                "The simulation fell back to demo mode because live AI simulation was unavailable."
             ),
             agent_changes=[
                 AgentChangeSummary(
                     agent="Financial Risk Agent",
-                    change=f"Risk score moved from {baseline.risk_score} to {scenario_result.risk_score}.",
-                ),
-                AgentChangeSummary(
-                    agent="Policy Check Agent",
-                    change=(
-                        "Approval is now required."
-                        if scenario_result.approval_required
-                        else "Approval is no longer required."
-                    ),
+                    change="Using saved demo simulation output.",
                 ),
             ],
         ),
         trace_reference=TraceReference(
-            simulation_run_id="run_sim_301",
-            trace_available=True,
+            simulation_run_id="run_sim_301_demo",
+            trace_available=False,
         ),
     )
+    state.simulation_details[simulation_id] = response
+    save_runtime_state(state)
+    return response
 
 
 @router.get("/cases/{case_id}/simulations", response_model=SimulationListResponse)
 async def list_simulations(case_id: str) -> SimulationListResponse:
-    simulations = SAVED_SIMULATIONS.get(case_id)
+    simulations = load_runtime_state().saved_simulations.get(case_id)
     if simulations is None:
         raise HTTPException(status_code=404, detail=f"No saved simulations for {case_id}")
     return simulations
@@ -203,7 +178,7 @@ async def list_simulations(case_id: str) -> SimulationListResponse:
 
 @router.get("/simulations/{simulation_id}", response_model=SimulationResponse)
 async def get_simulation(simulation_id: str) -> SimulationResponse:
-    simulation = SIMULATION_DETAILS.get(simulation_id)
+    simulation = load_runtime_state().simulation_details.get(simulation_id)
     if simulation is None:
         raise HTTPException(status_code=404, detail=f"Simulation {simulation_id} not found")
     return simulation
@@ -211,9 +186,30 @@ async def get_simulation(simulation_id: str) -> SimulationResponse:
 
 @router.post("/simulations/{simulation_id}/save", response_model=CaseActionResponse)
 async def save_simulation(simulation_id: str) -> CaseActionResponse:
-    simulation = SIMULATION_DETAILS.get(simulation_id)
+    state = load_runtime_state()
+    simulation = state.simulation_details.get(simulation_id)
     if simulation is None:
         raise HTTPException(status_code=404, detail=f"Simulation {simulation_id} not found")
+    case_id = simulation.simulation.case_id
+    saved_list = state.saved_simulations.get(case_id)
+    if saved_list is None:
+        saved_list = SimulationListResponse(case_id=case_id, saved_scenarios=[])
+        state.saved_simulations[case_id] = saved_list
+    saved_list.saved_scenarios = [
+        summary for summary in saved_list.saved_scenarios if summary.simulation_id != simulation_id
+    ]
+    saved_list.saved_scenarios.insert(
+        0,
+        SavedSimulationSummary(
+            simulation_id=simulation.simulation.simulation_id,
+            scenario_name=simulation.simulation.scenario_name,
+            created_at=simulation.simulation.started_at,
+            risk_level_after=simulation.scenario_result.risk_level,
+            approval_required=simulation.scenario_result.approval_required,
+        ),
+    )
+    simulation.simulation.status = "saved"
+    save_runtime_state(state)
     return CaseActionResponse(
         case_id=simulation.simulation.case_id,
         status="saved",
@@ -223,9 +219,18 @@ async def save_simulation(simulation_id: str) -> CaseActionResponse:
 
 @router.delete("/simulations/{simulation_id}", response_model=CaseActionResponse)
 async def delete_simulation(simulation_id: str) -> CaseActionResponse:
-    simulation = SIMULATION_DETAILS.get(simulation_id)
+    state = load_runtime_state()
+    simulation = state.simulation_details.get(simulation_id)
     if simulation is None:
         raise HTTPException(status_code=404, detail=f"Simulation {simulation_id} not found")
+    saved_list = state.saved_simulations.get(simulation.simulation.case_id)
+    if saved_list is not None:
+        saved_list.saved_scenarios = [
+            summary for summary in saved_list.saved_scenarios if summary.simulation_id != simulation_id
+        ]
+    if simulation_id.startswith("sim_live_"):
+        del state.simulation_details[simulation_id]
+    save_runtime_state(state)
     return CaseActionResponse(
         case_id=simulation.simulation.case_id,
         status="deleted",

@@ -1,18 +1,30 @@
 from fastapi import HTTPException
 
-from app.data.mock_store import CASE_DETAILS, CASES_LIST
+from app.data.mock_store import CASE_DETAILS
 from app.schemas.cases import CaseDetailResponse
+from app.services.runtime_state import load_runtime_state
 
 
 def build_case_detail(case_id: str) -> CaseDetailResponse:
+    state = load_runtime_state()
+    matching_case = next((row for row in state.cases_list.rows if row.case_id == case_id), None)
     case = CASE_DETAILS.get(case_id)
     if case is not None:
-        return CaseDetailResponse(case_id=case_id, **case)
+        latest_approval = next((detail for detail in state.approval_details.values() if detail.case_id == case_id), None)
+        return CaseDetailResponse(
+            case_id=case_id,
+            case_status=matching_case.status if matching_case is not None else "in_review",
+            approval_status=matching_case.approval_status if matching_case is not None else "none",
+            latest_run_id=matching_case.latest_run_id if matching_case is not None else None,
+            latest_run_status=matching_case.latest_run_status if matching_case is not None else None,
+            latest_approval_id=latest_approval.approval_id if latest_approval is not None else None,
+            **case,
+        )
 
-    matching_case = next((row for row in CASES_LIST.rows if row.case_id == case_id), None)
     if matching_case is None:
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
 
+    latest_approval = next((detail for detail in state.approval_details.values() if detail.case_id == case_id), None)
     risk_band = (
         "Critical"
         if matching_case.status == "awaiting_approval"
@@ -26,6 +38,11 @@ def build_case_detail(case_id: str) -> CaseDetailResponse:
         customer_name=matching_case.customer_name,
         segment=matching_case.segment,
         region=matching_case.region,
+        case_status=matching_case.status,
+        approval_status=matching_case.approval_status,
+        latest_run_id=matching_case.latest_run_id,
+        latest_run_status=matching_case.latest_run_status,
+        latest_approval_id=latest_approval.approval_id if latest_approval is not None else None,
         relationship_duration="Demo profile",
         payment_terms="Terms vary by account",
         credit_limit=0,

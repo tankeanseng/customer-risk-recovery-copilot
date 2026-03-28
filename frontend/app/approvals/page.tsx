@@ -7,32 +7,70 @@ import type { CSSProperties } from "react";
 import { fetchJson } from "../lib/api";
 import { approvalsData } from "../lib/demo-data";
 
+function mapQueueRow(row: any) {
+  return {
+    approvalId: row.approval_id,
+    caseId: row.case_id,
+    customerName: row.customer_name,
+    requestedAction: row.requested_action,
+    riskLevel: row.risk_level,
+    priority: row.priority,
+    policyReason: row.policy_reason,
+    waiting: row.waiting_since,
+    status: row.status,
+  };
+}
+
+function mapApprovalDetail(data: any) {
+  return {
+    approvalId: data.approval_id,
+    caseId: data.case_id,
+    customerName: data.customer_name,
+    requestedAction: data.requested_action,
+    approvalStatus: data.approval_status,
+    caseStatus: data.case_status,
+    riskSummary: data.risk_summary,
+    policyReason: data.policy_reason,
+    latestRunId: data.latest_run_id ?? null,
+    latestTraceAvailable: Boolean(data.latest_trace_available),
+    evidence: [
+      ["Outstanding balance", data.evidence_snapshot.outstanding_balance.toLocaleString()],
+      ["Overdue balance", data.evidence_snapshot.overdue_balance.toLocaleString()],
+      ["Oldest overdue", `${data.evidence_snapshot.oldest_overdue_days}d`],
+    ],
+    topDrivers: data.evidence_snapshot.top_risk_drivers,
+    recommendation: data.latest_recommendation.recommended_action,
+    tradeoff: data.latest_recommendation.business_tradeoff,
+    auditHistory: data.audit_history.map((event: any) => event.summary),
+  };
+}
+
 export default function ApprovalsPage() {
   const [queue, setQueue] = useState(approvalsData.queue);
   const [selectedId, setSelectedId] = useState(approvalsData.selected.approvalId);
-  const [selectedDetail, setSelectedDetail] = useState(approvalsData.selected);
+  const [selectedDetail, setSelectedDetail] = useState({
+    ...approvalsData.selected,
+    approvalStatus: "pending",
+    caseStatus: "awaiting_approval",
+    latestRunId: null as string | null,
+    latestTraceAvailable: false,
+  });
   const [decisionComment, setDecisionComment] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const queryApprovalId = new URLSearchParams(window.location.search).get("approvalId");
     let cancelled = false;
     fetchJson<any>("/approvals")
       .then((data) => {
         if (cancelled) return;
-        setQueue(
-          data.queue.map((row: any) => ({
-            approvalId: row.approval_id,
-            caseId: row.case_id,
-            customerName: row.customer_name,
-            requestedAction: row.requested_action,
-            riskLevel: row.risk_level,
-            priority: row.priority,
-            policyReason: row.policy_reason,
-            waiting: row.waiting_since,
-            status: row.status,
-          })),
-        );
+        const mappedQueue = data.queue.map(mapQueueRow);
+        setQueue(mappedQueue);
+        setSelectedDetail(mapApprovalDetail(data.selected_detail));
+        if (queryApprovalId && mappedQueue.some((row: any) => row.approvalId === queryApprovalId)) {
+          setSelectedId(queryApprovalId);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -45,23 +83,7 @@ export default function ApprovalsPage() {
     fetchJson<any>(`/approvals/${selectedId}`)
       .then((data) => {
         if (cancelled) return;
-        setSelectedDetail({
-          approvalId: data.approval_id,
-          caseId: data.case_id,
-          customerName: data.customer_name,
-          requestedAction: data.requested_action,
-          riskSummary: data.risk_summary,
-          policyReason: data.policy_reason,
-          evidence: [
-            ["Outstanding balance", data.evidence_snapshot.outstanding_balance.toLocaleString()],
-            ["Overdue balance", data.evidence_snapshot.overdue_balance.toLocaleString()],
-            ["Oldest overdue", `${data.evidence_snapshot.oldest_overdue_days}d`],
-          ],
-          topDrivers: data.evidence_snapshot.top_risk_drivers,
-          recommendation: data.latest_recommendation.recommended_action,
-          tradeoff: data.latest_recommendation.business_tradeoff,
-          auditHistory: data.audit_history.map((event: any) => event.summary),
-        });
+        setSelectedDetail(mapApprovalDetail(data));
       })
       .catch(() => undefined);
     return () => {
@@ -90,20 +112,29 @@ export default function ApprovalsPage() {
         method: "POST",
         body: JSON.stringify({ comment: decisionComment }),
       });
-      setFeedback(response.case_status === "approved" ? "Approval completed." : response.case_status.replace("_", " "));
+      setFeedback(response.message);
       setQueue((current) =>
         current.map((item) =>
           item.approvalId === selectedId
             ? {
                 ...item,
-                status:
-                  response.status === "revision_requested"
-                    ? "Revision Requested"
-                    : response.status.charAt(0).toUpperCase() + response.status.slice(1),
+                status: response.status,
               }
             : item,
         ),
       );
+      setSelectedDetail((current) => ({
+        ...current,
+        approvalStatus: response.status,
+        caseStatus: response.case_status,
+        latestRunId: response.trace_run_id ?? response.resumed_run_id ?? current.latestRunId,
+        latestTraceAvailable: Boolean(response.trace_available),
+        auditHistory: [
+          decisionComment.trim().length > 0 ? decisionComment : response.message,
+          ...current.auditHistory,
+        ],
+      }));
+      setDecisionComment("");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Unable to submit decision.");
     } finally {
@@ -124,7 +155,14 @@ export default function ApprovalsPage() {
           <Link href={`/cases/${selectedDetail.caseId}`} style={secondaryLinkStyle}>
             Open Case
           </Link>
-          <Link href="/traces" style={secondaryLinkStyle}>
+          <Link
+            href={
+              selectedDetail.latestRunId
+                ? `/traces?runId=${selectedDetail.latestRunId}&caseId=${selectedDetail.caseId}`
+                : `/traces?caseId=${selectedDetail.caseId}`
+            }
+            style={secondaryLinkStyle}
+          >
             View Trace
           </Link>
         </div>
@@ -144,7 +182,15 @@ export default function ApprovalsPage() {
           <h2 style={panelTitleStyle}>Approval Queue</h2>
           <div style={{ display: "grid", gap: 12 }}>
             {queue.map((row) => (
-              <div key={row.approvalId} style={{ border: "1px solid var(--border)", borderRadius: 16, padding: 16 }}>
+              <div
+                key={row.approvalId}
+                style={{
+                  border: row.approvalId === selectedId ? "1px solid var(--accent)" : "1px solid var(--border)",
+                  borderRadius: 16,
+                  padding: 16,
+                  background: row.approvalId === selectedId ? "var(--accent-soft)" : "transparent",
+                }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                   <div style={{ fontWeight: 700 }}>{row.customerName}</div>
                   <span style={row.riskLevel === "Critical" ? criticalChipStyle : chipStyle}>{row.riskLevel}</span>
@@ -153,6 +199,9 @@ export default function ApprovalsPage() {
                   {row.requestedAction} | {row.priority} priority | waiting {row.waiting}
                 </div>
                 <div style={{ marginTop: 8 }}>{row.policyReason}</div>
+                <div style={{ marginTop: 8 }}>
+                  <span style={miniStatusChipStyle}>{row.status.replaceAll("_", " ")}</span>
+                </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
                   <Link href={`/cases/${row.caseId}`} style={secondaryLinkStyle}>
                     Open Case
@@ -171,6 +220,13 @@ export default function ApprovalsPage() {
             <h2 style={panelTitleStyle}>Approval Detail</h2>
             <div style={{ fontWeight: 700, fontSize: 22 }}>{selectedDetail.customerName}</div>
             <div style={{ color: "var(--text-muted)", marginTop: 6 }}>{selectedDetail.requestedAction}</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              <span style={miniStatusChipStyle}>Approval {selectedDetail.approvalStatus.replaceAll("_", " ")}</span>
+              <span style={miniStatusChipStyle}>Case {selectedDetail.caseStatus.replaceAll("_", " ")}</span>
+              {selectedDetail.latestRunId ? (
+                <span style={miniStatusChipStyle}>Run {selectedDetail.latestRunId.slice(0, 12)}</span>
+              ) : null}
+            </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Risk summary</div>
               <div style={{ color: "var(--text-muted)" }}>{selectedDetail.riskSummary}</div>
@@ -196,6 +252,16 @@ export default function ApprovalsPage() {
                   </span>
                 ))}
               </div>
+              {selectedDetail.latestRunId ? (
+                <div style={{ marginTop: 12 }}>
+                  <Link
+                    href={`/traces?runId=${selectedDetail.latestRunId}&caseId=${selectedDetail.caseId}`}
+                    style={inlineTraceLinkStyle}
+                  >
+                    Open latest run trace
+                  </Link>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -285,6 +351,16 @@ const miniChipStyle: CSSProperties = {
   fontWeight: 700,
 };
 
+const miniStatusChipStyle: CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  background: "var(--panel-muted)",
+  border: "1px solid var(--border)",
+  color: "var(--text-muted)",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
 const approveButtonStyle: CSSProperties = {
   padding: "10px 14px",
   borderRadius: 12,
@@ -322,4 +398,9 @@ const secondaryLinkStyle: CSSProperties = {
   background: "var(--panel)",
   color: "var(--text)",
   fontWeight: 600,
+};
+
+const inlineTraceLinkStyle: CSSProperties = {
+  color: "var(--accent)",
+  fontWeight: 700,
 };

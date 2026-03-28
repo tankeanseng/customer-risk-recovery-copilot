@@ -18,8 +18,8 @@ def get_architecture_view() -> ArchitectureResponse:
                 "+ serverless-backend architecture that is designed to stay cost-conscious while still feeling advanced."
             ),
             highlights=[
-                "LangGraph planned for multi-step agent orchestration",
-                "MCP planned for modular data/tool access",
+                "LangGraph now used for the first case-review workflow",
+                "MCP now used for the first local tool-access slice",
                 "LiteLLM already used for live model routing",
                 "OpenAI already used for live case review",
                 "LangSmith already used for tracing the live review path",
@@ -52,13 +52,13 @@ def get_architecture_view() -> ArchitectureResponse:
             ),
             TechnicalArchitectureBlock(
                 layer="Orchestration",
-                components=["LangGraph planned", "Approval interrupt/resume planned", "Multi-agent graph planned"],
-                status="planned",
+                components=["LangGraph live for case-review workflow", "Approval interrupt/resume planned", "Multi-agent graph expansion planned"],
+                status="partially_live",
             ),
             TechnicalArchitectureBlock(
                 layer="Tooling And Data Access",
-                components=["MCP topology planned", "Current demo data in local artifacts", "S3-backed data strategy planned"],
-                status="planned",
+                components=["MCP tools live for first local slice", "Current demo data in local artifacts", "S3-backed data strategy planned"],
+                status="partially_live",
             ),
             TechnicalArchitectureBlock(
                 layer="Observability And Quality",
@@ -70,17 +70,17 @@ def get_architecture_view() -> ArchitectureResponse:
             McpTopologyItem(
                 name="customer-profile-mcp",
                 responsibility="Customer master profile, commercial tier, and account metadata.",
-                status="planned",
+                status="partially_live",
             ),
             McpTopologyItem(
                 name="ar-analytics-mcp",
                 responsibility="Invoice aging, payment behavior, and order trend analytics.",
-                status="planned",
+                status="partially_live",
             ),
             McpTopologyItem(
                 name="notes-policy-mcp",
                 responsibility="Notes, disputes, and policy-rule retrieval.",
-                status="planned",
+                status="partially_live",
             ),
             McpTopologyItem(
                 name="case-actions-mcp",
@@ -89,11 +89,11 @@ def get_architecture_view() -> ArchitectureResponse:
             ),
         ],
         specialist_agents=[
-            SpecialistAgentItem(name="Case Intake Agent", purpose="Shapes the review scope and required evidence.", status="planned"),
+            SpecialistAgentItem(name="Case Intake Agent", purpose="Shapes the review scope and required evidence.", status="partially_live"),
             SpecialistAgentItem(name="Financial Risk Agent", purpose="Interprets aging, exposure, and payment deterioration.", status="planned"),
             SpecialistAgentItem(name="Relationship Agent", purpose="Balances qualitative account context and strategic importance.", status="planned"),
-            SpecialistAgentItem(name="Policy Check Agent", purpose="Checks approval and threshold rules before action.", status="planned"),
-            SpecialistAgentItem(name="Recovery Strategy Agent", purpose="Generates the recommended recovery action and next steps.", status="planned"),
+            SpecialistAgentItem(name="Policy Check Agent", purpose="Checks approval and threshold rules before action.", status="partially_live"),
+            SpecialistAgentItem(name="Recovery Strategy Agent", purpose="Generates the recommended recovery action and next steps.", status="partially_live"),
         ],
         deployment_topology=[
             DeploymentTopologyItem(
@@ -120,6 +120,6 @@ def get_architecture_view() -> ArchitectureResponse:
         notes=[
             "The page intentionally distinguishes live pieces from planned pieces so the architecture story stays honest.",
             "CloudFront + Lambda compatibility is a design constraint for ongoing implementation.",
-            "MCP and LangGraph are part of the planned advanced workflow, but are not yet implemented in code.",
+            "LangGraph and MCP are now live in the first case-review slice, while broader multi-agent expansion is still planned.",
         ],
     )

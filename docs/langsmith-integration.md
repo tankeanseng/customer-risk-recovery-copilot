@@ -9,6 +9,8 @@ LangSmith tracing is now wired into the first real AI-powered workflow:
 Current traced functions:
 
 - `live_case_review` with run type `chain`
+- `approval_resume_workflow` with run type `chain`
+- `mcp_tool_call` with run type `tool`
 - `case_review_model_call` with run type `llm`
 
 These traces are emitted from:
@@ -23,9 +25,13 @@ For the live case-review path, LangSmith currently captures:
 - the outer workflow invocation
 - the LangGraph wrapper span
 - the intake node
+- MCP tool-call spans
 - the review node
 - the nested model-call step
 - the policy node
+- the approval resume workflow
+- the approval decision node
+- the execution dispatch node
 - the model input/output boundary for the live review path
 
 This gives us the first real LangSmith visibility for the project with a real LangGraph workflow already in place.
@@ -85,17 +91,29 @@ Additional tag currently attached:
 
 ### LangGraph workflow step traces
 
-The first LangGraph slice now adds these traceable steps under the root workflow:
+The current LangGraph slices now add these traceable steps under the root workflows:
 
 - `case_review_intake_node`
 - `case_review_review_node`
 - `case_review_policy_node`
+- `approval_resume_decision_node`
+- `approval_resume_dispatch_node`
 
 The in-app trace page maps those to:
 
 - `Intake Node`
 - `Review Node`
 - `Policy Node`
+- `Approval Decision Node`
+- `Execution Dispatch Node`
+
+### MCP tool traces
+
+The live review workflow now also emits `mcp_tool_call` spans for:
+
+- `customer-profile-mcp / get_customer_profile`
+- `ar-analytics-mcp / get_ar_snapshot`
+- `notes-policy-mcp / get_policy_context`
 
 ## Why These Fields Were Chosen
 
@@ -145,11 +163,15 @@ Those are already visible in traced function inputs and outputs when useful, so 
 The integration was verified by listing recent runs in the configured LangSmith project and confirming recent traces existed for:
 
 - `live_case_review`
+- `approval_resume_workflow`
 - `LangGraph`
 - `case_review_intake_node`
 - `case_review_review_node`
+- `mcp_tool_call`
 - `case_review_model_call`
 - `case_review_policy_node`
+- `approval_resume_decision_node`
+- `approval_resume_dispatch_node`
 
 It was also verified that both traces now expose business-friendly metadata such as:
 
@@ -165,6 +187,15 @@ It was also verified that the trace payload returned by the app can now surface 
 - `Review Node`
 - `Policy Node`
 - `Model Call`
+- `Approval Resume Workflow`
+- `Approval Decision Node`
+- `Execution Dispatch Node`
+
+It was also verified that the trace payload now surfaces real MCP tool calls instead of a placeholder:
+
+- `customer-profile-mcp / get_customer_profile`
+- `ar-analytics-mcp / get_ar_snapshot`
+- `notes-policy-mcp / get_policy_context`
 
 The app also now uses real LangSmith-backed run ids in more places:
 
@@ -179,14 +210,15 @@ LangSmith is currently being used as a tracing layer only.
 It is **not yet** connected to:
 
 - evaluation-run publishing
-- simulator live tracing
-- approval workflow tracing
-- MCP tool traces
+- MCP resources/prompts beyond tool calls
 
 It is now partially connected to:
 
 - the in-app trace page for latest live case-review traces by case
 - the first LangGraph node-level orchestration for case review
+- the first LangGraph approval-resume workflow
+- the first MCP-backed tool-call slice for case review
+- live simulation runs that reuse the case-review workflow with scenario-adjusted payloads
 
 ## Why This Is Still Useful
 

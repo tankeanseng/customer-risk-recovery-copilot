@@ -258,3 +258,61 @@ Case Intake Agent
 ```
 
 That larger workflow is exactly where LangGraph becomes especially valuable.
+
+## Second project example: approval resume workflow
+
+We now also use a small LangGraph workflow after a manager approves a queued recommendation.
+
+```text
+START
+  -> decision
+  -> dispatch
+  -> END
+```
+
+### What it does
+
+- `decision`
+  - records the manager-approved decision context
+- `dispatch`
+  - records the downstream execution handoff
+
+### Input example
+
+```python
+{
+  "approval_context": {
+    "approval_id": "app_203",
+    "case_id": "case_006",
+    "customer_name": "BluePeak Trading Sdn Bhd",
+    "requested_action": "Tighten terms and pause growth on credit",
+    "priority": "high",
+    "risk_level": "High"
+  },
+  "manager_comment": "Approve live resume workflow test."
+}
+```
+
+### Output example
+
+```python
+{
+  "approval_id": "app_203",
+  "case_id": "case_006",
+  "customer_name": "BluePeak Trading Sdn Bhd",
+  "requested_action": "Tighten terms and pause growth on credit",
+  "manager_comment": "Approve live resume workflow test.",
+  "dispatch_status": "completed",
+  "case_status": "approved",
+  "next_step": "Execution dispatch completed for downstream collections handling.",
+  "summary": "Execution dispatch completed for approval app_203 on case case_006."
+}
+```
+
+### Why this matters
+
+This turns the approval flow from a plain API mutation into a real traced workflow. That gives the app:
+
+- a meaningful resumed run id
+- a real trace entry in LangSmith
+- a cleaner foundation for future pause/resume logic

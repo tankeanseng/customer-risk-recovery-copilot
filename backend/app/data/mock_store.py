@@ -884,18 +884,21 @@ APPROVAL_DECISIONS = {
         status="approved",
         resumed_run_id="run_resume_201",
         case_status="approved",
+        message="Approval completed and workflow resumed.",
     ),
     "reject": ApprovalDecisionResponse(
         approval_id="app_201",
         status="rejected",
         resumed_run_id=None,
         case_status="rejected",
+        message="Approval rejected. Case closed without executing the recommendation.",
     ),
     "revise": ApprovalDecisionResponse(
         approval_id="app_201",
         status="revision_requested",
         resumed_run_id=None,
         case_status="in_review",
+        message="Revision requested. Case sent back for another analyst pass.",
     ),
 }
 

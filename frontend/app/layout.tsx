@@ -2,7 +2,9 @@ import "./globals.css";
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+
+import { DemoWalkthrough } from "./ui/demo-walkthrough";
 
 const navItems = [
   { href: "/", label: "Overview" },
@@ -77,7 +79,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             >
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Recommended Demo</div>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>Horizon Foodservice Trading</div>
-              <Link href="/portfolio" style={{ color: "var(--accent)", fontWeight: 600 }}>
+              <Link href="/?walkthrough=demo&step=overview" style={{ color: "var(--accent)", fontWeight: 600 }}>
                 Start walkthrough
               </Link>
             </div>
@@ -132,8 +134,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div style={{ padding: 24 }}>{children}</div>
           </main>
         </div>
+        <Suspense fallback={null}>
+          <DemoWalkthrough />
+        </Suspense>
       </body>
     </html>
   );
 }
-

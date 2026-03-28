@@ -18,6 +18,11 @@ class ScenarioInputs(BaseModel):
     account_manager_confidence: int
 
 
+class SimulationRunRequest(BaseModel):
+    scenario_name: str | None = None
+    inputs: ScenarioInputs
+
+
 class SimulationSummary(BaseModel):
     risk_level: RiskBand
     risk_score: int
@@ -64,6 +69,7 @@ class SimulationRunMeta(BaseModel):
     started_at: str
     ended_at: str
     duration_ms: int
+    model_used: str | None = None
 
 
 class SimulationResponse(BaseModel):

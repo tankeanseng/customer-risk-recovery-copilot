@@ -19,6 +19,33 @@ def is_live_review_enabled() -> bool:
     return bool(os.getenv("OPENAI_API_KEY"))
 
 
+def policy_status_requires_approval(policy_status: str) -> bool:
+    normalized = policy_status.strip().lower()
+    negative_patterns = (
+        "no approval required",
+        "approval not required",
+        "approval is not required",
+        "no immediate approval",
+        "without immediate approval",
+        "does not require approval",
+        "no manager approval required",
+        "approval is unnecessary",
+    )
+    if any(pattern in normalized for pattern in negative_patterns):
+        return False
+
+    positive_patterns = (
+        "approval required",
+        "manager approval required",
+        "approval mandatory",
+        "requires approval",
+        "requires manager approval",
+        "must be approved",
+        "escalate for approval",
+    )
+    return any(pattern in normalized for pattern in positive_patterns)
+
+
 def _normalize_tag(value: str) -> str:
     return (
         value.strip()

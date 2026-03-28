@@ -39,6 +39,11 @@ class CaseDetailResponse(BaseModel):
     customer_name: str
     segment: str
     region: str
+    case_status: str = "in_review"
+    approval_status: str = "none"
+    latest_run_id: str | None = None
+    latest_run_status: str | None = None
+    latest_approval_id: str | None = None
     relationship_duration: str
     payment_terms: str
     credit_limit: float
@@ -69,6 +74,10 @@ class CaseActionResponse(BaseModel):
     case_id: str
     status: str
     message: str
+    approval_id: str | None = None
+    resumed_run_id: str | None = None
+    trace_run_id: str | None = None
+    trace_available: bool = False
 
 
 class TriageRulesResponse(BaseModel):
